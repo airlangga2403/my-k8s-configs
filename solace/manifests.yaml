@@ -1,22 +1,5 @@
-# ===================================================================
-# ANNOTATED SOLACE DEPLOYMENT FOR KUBERNETES
-#
-# This manifest deploys a single-node Solace Pub/Sub+ event broker
-# using a StatefulSet for persistent storage.
-#
-# Notes:
-# - The initial log message "WaitForFirstConsumer" is normal for
-#   dynamically provisioned Persistent Volumes. It means Kubernetes
-#   is waiting to schedule the Pod before creating the disk,
-#   ensuring the disk is created in the correct availability zone.
-#   If the Pod remains "Pending" for a long time, check for
-#   insufficient cluster resources (CPU/memory) or scheduling issues
-#   with `kubectl describe pod solace-pubsub-0 -n solace`.
-# ===================================================================
-
 # =====================================
 # Namespace: solace
-# A dedicated namespace to logically isolate the Solace resources.
 # =====================================
 apiVersion: v1
 kind: Namespace
@@ -25,8 +8,6 @@ metadata:
 ---
 # =====================================
 # Secret: solace-secret
-# Stores sensitive data, like the admin password, separately from
-# the Pod definition for better security.
 # =====================================
 apiVersion: v1
 kind: Secret
@@ -34,15 +15,10 @@ metadata:
   name: solace-secret
   namespace: solace
 stringData:
-  # The password for the 'admin' user of the Solace broker.
-  # It's good practice to change this from the default.
   username_admin_password: "PasswordSolace123"
 ---
 # =====================================
 # StatefulSet: solace-pubsub
-# Manages the Solace Pod. A StatefulSet is used because it provides
-# stable, unique network identifiers and stable, persistent storage,
-# which are crucial for a stateful application like a message broker.
 # =====================================
 apiVersion: apps/v1
 kind: StatefulSet
@@ -50,18 +26,16 @@ metadata:
   name: solace-pubsub
   namespace: solace
 spec:
-  # The governing service that provides a stable network endpoint.
   serviceName: "solace-service"
   replicas: 1
   selector:
     matchLabels:
-      app: solace # Must match the labels in the Pod template.
+      app: solace
   template:
     metadata:
       labels:
-        app: solace # Pod label for the selector to find it.
+        app: solace
     spec:
-      # Security settings for all containers in the pod.
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -70,76 +44,60 @@ spec:
         - name: solace
           image: solace/solace-pubsub-standard:10.25.0
           env:
-            # Injects the admin password from the 'solace-secret' Secret.
             - name: username_admin_password
               valueFrom:
                 secretKeyRef:
                   name: solace-secret
                   key: username_admin_password
-            # Configures the broker to forward its logs to the container's
-            # standard output, allowing `kubectl logs` to work.
             - name: SOLACE_LOG_TO_STDOUT
               value: "yes"
-            # ==========================================================
-            # FIX: Skip the rsyslog check that causes startup failure.
-            # This line is CRUCIAL for the pod to start correctly.
-            # ==========================================================
-            - name: SOLACE_CHECK_RSYSLOG
-              value: "no"
-          # Resource requests and limits for the container.
-          # These are important for scheduling and stability.
+            # --- PERBAIKAN DIMULAI DI SINI ---
+            # Secara eksplisit memberitahu Solace port eksternal (NodePort) yang digunakan.
+            # Nilai ini HARUS SAMA dengan nodePort yang ada di Service.
+            - name: service_web_port
+              value: "31444"
+            - name: service_smf_port
+              value: "31443"
+            - name: service_amqp_port
+              value: "31445"
+            # --- PERBAIKAN SELESAI ---
           resources:
             requests:
               memory: "2Gi"
-              cpu: "1500m" # 1.5 CPU cores
+              cpu: "1500m"
             limits:
               memory: "3Gi"
-              cpu: "2500m" # 2.5 CPU cores
+              cpu: "2500m"
           ports:
-            # Exposes ports from the container.
-            - containerPort: 8080  # Web UI & SEMP management
+            - containerPort: 8080
               name: web
-            - containerPort: 55555 # Solace Message Format (SMF) for client apps
+            - containerPort: 55555
               name: smf
-            - containerPort: 5672  # AMQP protocol
+            - containerPort: 5672
               name: amqp
           volumeMounts:
-            # Mounts a memory-backed directory for high-speed IPC.
             - name: dshm
               mountPath: /dev/shm
-            # Mounts the persistent storage for broker data.
             - name: solace-storage
               mountPath: /usr/sw/var
-          # Container-level security settings.
           securityContext:
-            # WARNING: Privileged mode is a security risk as it gives the
-            # container extensive access to the host node. Solace often
-            # requires it for performance-related kernel tuning.
-            # Evaluate if this is acceptable in your security policies.
             privileged: true
       volumes:
-        # Defines the in-memory volume for /dev/shm.
         - name: dshm
           emptyDir:
             medium: Memory
             sizeLimit: 1Gi
-  # This template is the recommended way to create PVCs for a StatefulSet.
-  # It will create a PVC named 'solace-storage-<pod-name>' for each pod.
   volumeClaimTemplates:
     - metadata:
         name: solace-storage
       spec:
         accessModes: [ "ReadWriteOnce" ]
-        # Ensure your cluster has a StorageClass that can provision this.
-        storageClassName: local-path
         resources:
           requests:
             storage: 10Gi
 ---
 # =====================================
-# Service: solace-service
-# Exposes the Solace Pod to the network. Using NodePort makes it
-# accessible from outside the cluster via <NodeIP>:<NodePort>.
+# Service: solace-service (NodePort)
 # =====================================
 apiVersion: v1
 kind: Service
@@ -147,18 +105,15 @@ metadata:
   name: solace-service
   namespace: solace
 spec:
-  # NodePort is useful for testing/dev. For production, consider using
-  # a LoadBalancer type service or an Ingress Controller for more
-  # robust and secure access.
   type: NodePort
   selector:
-    app: solace # Selects pods with the 'app: solace' label.
+    app: solace
   ports:
     - name: web
       protocol: TCP
-      port: 8080       # Port inside the cluster.
-      targetPort: 8080   # Port on the pod.
-      nodePort: 31444    # Port on the physical node.
+      port: 8080
+      targetPort: 8080
+      nodePort: 31444
     - name: smf
       protocol: TCP
       port: 55555
