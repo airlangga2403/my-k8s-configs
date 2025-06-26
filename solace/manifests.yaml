@@ -1,4 +1,4 @@
-# solace/manifests.yaml (Versi Final dengan perbaikan /dev/shm)
+# solace/manifests.yaml (Versi dengan penyesuaian resource & Service NodePort)
 
 # Secret untuk admin user (tetap sama)
 apiVersion: v1
@@ -9,7 +9,7 @@ metadata:
 stringData:
   username_admin_password: "PasswordSolace123"
 ---
-# StatefulSet untuk menjalankan broker Solace (dengan perbaikan)
+# StatefulSet untuk menjalankan broker Solace (dengan resource yang lebih rendah)
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -36,16 +36,14 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      # --- PENAMBAHAN KUNCI: Mendefinisikan volume untuk /dev/shm ---
       volumes:
-        # Mendefinisikan volume memory-backed bernama 'dshm'
       - name: dshm
         emptyDir:
           medium: Memory
-          sizeLimit: 2Gi # Memberikan 2Gi, lebih dari cukup dari 1Gi yang diminta
-      - name: solace-storage # Ini adalah volume persistent yang sudah ada
+          sizeLimit: 1Gi
+      - name: solace-storage
         persistentVolumeClaim:
-          claimName: solace-storage # Pastikan ini cocok dengan nama PVC yang dibuat oleh volumeClaimTemplates
+          claimName: solace-storage
       containers:
       - name: solace
         image: solace/solace-pubsub-standard:latest
@@ -55,13 +53,15 @@ spec:
               secretKeyRef:
                 name: solace-secret
                 key: username_admin_password
+          - name: SOLACE_LOG_TO_STDOUT
+            value: "yes"
         resources:
           requests:
-            memory: "3Gi"
-            cpu: "1000m"
+            memory: "1Gi"
+            cpu: "500m"
           limits:
-            memory: "4Gi"
-            cpu: "1500m"
+            memory: "2Gi"
+            cpu: "1000m"
         ports:
           - containerPort: 8080
             name: web
@@ -70,43 +70,44 @@ spec:
           - containerPort: 5672
             name: amqp
         volumeMounts:
-        # --- PENAMBAHAN KUNCI: Memasang volume 'dshm' ke /dev/shm ---
         - name: dshm
           mountPath: /dev/shm
-        - name: solace-storage # Mount untuk data persistent
+        - name: solace-storage
           mountPath: /usr/sw/var
         securityContext:
           privileged: true
   volumeClaimTemplates:
   - metadata:
-      name: solace-storage # PVC untuk data persistent
+      name: solace-storage
     spec:
       accessModes: [ "ReadWriteOnce" ]
       resources:
         requests:
           storage: 10Gi
 ---
-# Service (tetap sama)
+# --- PENAMBAHAN: Service untuk mengekspos Solace ke publik via NodePort ---
 apiVersion: v1
 kind: Service
 metadata:
   name: solace-service
   namespace: solace
 spec:
+  # Tipe NodePort akan membuat port dapat diakses melalui IP node K8s Anda
   type: NodePort
   selector:
+    # Selector ini harus cocok dengan label pada template pod di StatefulSet
     app: solace
   ports:
     - name: web
       protocol: TCP
-      port: 8080
-      targetPort: 8080
-      nodePort: 31444
+      port: 8080         # Port internal di dalam cluster
+      targetPort: 8080   # Port di dalam container
+      nodePort: 31444    # Port publik yang dapat diakses dari luar (IP_NODE:31444)
     - name: smf
       protocol: TCP
       port: 55555
       targetPort: 55555
-      nodePort: 31443
+      nodePort: 31443    # Port ini yang akan digunakan oleh aplikasi Spring Boot Anda
     - name: amqp
       protocol: TCP
       port: 5672
