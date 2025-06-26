@@ -1,20 +1,21 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: minio
+  # Nama aplikasi baru di Argo CD
+  name: minio-new
   namespace: argocd
 spec:
   project: default
   source:
-    # Tunjuk ke repositori Git Anda
-    repoURL: 'https://github.com/airlangga2403/my-k8s-configs.git'
-    # Path ke folder tempat Anda menyimpan manifes Minio
-    path: minio
-    # Target branch atau revisi
+    # Ganti dengan URL repo Git Anda
+    repoURL: 'https://github.com/your-username/my-k8s-configs.git' 
+    # Path ke folder baru tempat Anda menyimpan manifes
+    path: minio-new
     targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
-    namespace: minio
+    # Namespace bisa tetap sama, karena nama resource di dalamnya sudah unik
+    namespace: minio 
   syncPolicy:
     automated:
       prune: true
