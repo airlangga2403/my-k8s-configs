@@ -35,10 +35,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: solace
-          # Corrected image name: solace/solace-pubsub-standard is the generally used image.
-          # If 'latest' still causes issues, try a specific version tag like '10.6.1.28'.
-          # For private registries or rate limits, you might need imagePullSecrets.
-          image: solace/solace-pubsub-standard:latest 
+          image: solace/solace-pubsub-standard:latest
           env:
             - name: username_admin_globalaccesslevel
               value: "admin"
@@ -128,7 +125,7 @@ metadata:
   name: solace-service
   namespace: solace
 spec:
-  type: LoadBalancer
+  type: NodePort
   selector:
     app: solace
   ports:
@@ -136,35 +133,44 @@ spec:
       protocol: TCP
       port: 8080
       targetPort: 8080
+      nodePort: 30080   # WebUI (http://IP:30080)
     - name: smf
       protocol: TCP
       port: 55555
       targetPort: 55555
+      nodePort: 30555
     - name: amqp
       protocol: TCP
       port: 5672
       targetPort: 5672
+      nodePort: 31672
     - name: semp-tls
       protocol: TCP
       port: 8008
       targetPort: 8008
+      nodePort: 38008
     - name: mqtt
       protocol: TCP
       port: 1883
       targetPort: 1883
+      nodePort: 31883   # MQTT TCP
     - name: mqtt-ws
       protocol: TCP
       port: 8000
       targetPort: 8000
+      nodePort: 38000   # MQTT WebSocket
     - name: mqtt-secure
       protocol: TCP
       port: 8883
       targetPort: 8883
+      nodePort: 38883   # MQTT TLS
     - name: cli-secure
       protocol: TCP
       port: 2222
       targetPort: 2222
+      nodePort: 32222
     - name: smf-tls
       protocol: TCP
       port: 55443
       targetPort: 55443
+      nodePort: 35443
