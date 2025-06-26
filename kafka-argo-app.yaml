@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  # Nama aplikasi baru di Argo CD untuk Kafka
+  name: kafka-cluster
+  namespace: argocd
+spec:
+  project: default
+  source:
+    # !!! PENTING: Ganti dengan URL repo Git Anda !!!
+    repoURL: 'https://github.com/your-username/your-k8s-configs.git'
+    # Path ke folder tempat Anda akan menyimpan file kafka-manifests.yaml
+    path: kafka
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    # Namespace tujuan untuk Kafka, akan dibuat secara otomatis
+    namespace: kafka
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # Izinkan Argo CD untuk membuat namespace 'kafka' jika belum ada
+      - CreateNamespace=true

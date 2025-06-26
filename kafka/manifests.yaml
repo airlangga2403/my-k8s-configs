@@ -1,0 +1,189 @@
+# 1. Namespace untuk mengisolasi Kafka dan Zookeeper
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kafka
+---
+# --- Konfigurasi Zookeeper (Dependensi Kafka) ---
+
+# 2. Service untuk Zookeeper
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper-svc
+  namespace: kafka
+  labels:
+    app: zookeeper
+spec:
+  ports:
+  - name: client
+    port: 2181
+    protocol: TCP
+  clusterIP: None # Headless service untuk StatefulSet
+  selector:
+    app: zookeeper
+---
+# 3. StatefulSet untuk Zookeeper
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: zookeeper
+  namespace: kafka
+spec:
+  serviceName: "zookeeper-svc"
+  # Menggunakan 1 replika untuk menghemat sumber daya
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zookeeper
+  template:
+    metadata:
+      labels:
+        app: zookeeper
+    spec:
+      containers:
+      - name: zookeeper
+        image: confluentinc/cp-zookeeper:7.0.1
+        ports:
+        - containerPort: 2181
+        env:
+        - name: ZOOKEEPER_CLIENT_PORT
+          value: "2181"
+        - name: ZOOKEEPER_TICK_TIME
+          value: "2000"
+        # Menentukan permintaan dan batas sumber daya yang rendah
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+        volumeMounts:
+        - name: zookeeper-data
+          mountPath: /var/lib/zookeeper/data
+        - name: zookeeper-log
+          mountPath: /var/lib/zookeeper/log
+  volumeClaimTemplates:
+  - metadata:
+      name: zookeeper-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 2Gi # Ukuran penyimpanan kecil
+  - metadata:
+      name: zookeeper-log
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+---
+# --- Konfigurasi Kafka Broker ---
+
+# 4. Service Internal untuk Kafka (komunikasi antar broker)
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-svc-internal
+  namespace: kafka
+  labels:
+    app: kafka
+spec:
+  ports:
+  - name: broker
+    port: 9092
+    protocol: TCP
+  clusterIP: None # Headless service untuk StatefulSet
+  selector:
+    app: kafka
+---
+# 5. Service Eksternal dengan NodePort untuk Kafka
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-svc-external
+  namespace: kafka
+spec:
+  type: NodePort
+  selector:
+    app: kafka
+  ports:
+  - name: kafka-external
+    protocol: TCP
+    port: 9094 # Port internal yang akan di-mapping
+    targetPort: 9094
+    # Anda dapat menentukan nodePort secara manual atau membiarkannya dialokasikan secara otomatis
+    # nodePort: 32094
+---
+# 6. StatefulSet untuk Kafka Broker
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: kafka
+spec:
+  serviceName: "kafka-svc-internal"
+  # Menggunakan 1 replika untuk menghemat sumber daya
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+      - name: kafka
+        image: confluentinc/cp-kafka:7.0.1
+        ports:
+        - name: internal
+          containerPort: 9092
+        - name: external
+          containerPort: 9094
+        env:
+        # Konfigurasi koneksi ke Zookeeper
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          value: "zookeeper-svc:2181"
+        # Konfigurasi listener internal (dalam cluster)
+        - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+          value: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
+        - name: KAFKA_INTER_BROKER_LISTENER_NAME
+          value: "INTERNAL"
+        # Konfigurasi listener eksternal (via NodePort)
+        # Broker akan mengiklankan dirinya pada port 9094. Service NodePort akan meneruskan traffic ke sini.
+        - name: KAFKA_ADVERTISED_LISTENERS
+          value: "INTERNAL://kafka-0.kafka-svc-internal.kafka.svc.cluster.local:9092,EXTERNAL://$(KAFKA_ADVERTISED_HOST_NAME):9094"
+        # Ambil nama host (IP node) dari Downward API. Ini penting untuk NodePort.
+        - name: KAFKA_ADVERTISED_HOST_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        # Konfigurasi lainnya untuk setup minimal
+        - name: KAFKA_BROKER_ID
+          value: "1"
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+          value: "0"
+        # Menentukan permintaan dan batas sumber daya
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1.5Gi"
+          limits:
+            cpu: "1"
+            memory: "2.5Gi"
+        volumeMounts:
+        - name: kafka-data
+          mountPath: /var/lib/kafka/data
+  volumeClaimTemplates:
+  - metadata:
+      name: kafka-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 5Gi # Ukuran penyimpanan untuk data Kafka
