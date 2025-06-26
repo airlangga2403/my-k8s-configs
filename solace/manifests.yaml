@@ -118,8 +118,8 @@ spec:
             storage: 10Gi
 ---
 # =====================================
-# Service: solace-service (NodePort)
-# Exposes the Solace Pod to the network.
+# Service: solace-service (LoadBalancer)
+# Exposes the Solace Pod to the internet via a cloud Load Balancer.
 # =====================================
 apiVersion: v1
 kind: Service
@@ -127,48 +127,43 @@ metadata:
   name: solace-service
   namespace: solace
 spec:
-  type: NodePort
+  # --- PERBAIKAN: Mengubah tipe Service menjadi LoadBalancer ---
+  # Ini akan secara otomatis membuat Load Balancer di provider cloud Anda.
+  type: LoadBalancer
   selector:
     app: solace
   ports:
     # --- PERBAIKAN: Menambahkan semua port dari docker run ---
+    # NodePort tidak perlu didefinisikan secara manual saat menggunakan LoadBalancer.
     - name: web
       protocol: TCP
       port: 8080
       targetPort: 8080
-      nodePort: 31444
     - name: smf
       protocol: TCP
       port: 55555
       targetPort: 55555
-      nodePort: 31443
     - name: amqp
       protocol: TCP
       port: 5672
       targetPort: 5672
-      nodePort: 31445
     - name: semp-tls
       protocol: TCP
       port: 8008
       targetPort: 8008
-      nodePort: 31446
     - name: mqtt
       protocol: TCP
       port: 1883
       targetPort: 1883
-      nodePort: 31447
     - name: mqtt-ws
       protocol: TCP
       port: 8000
       targetPort: 8000
-      nodePort: 31448
     - name: mqtt-secure
       protocol: TCP
       port: 9000
       targetPort: 9000
-      nodePort: 31449
     - name: cli-secure
       protocol: TCP
       port: 2222
       targetPort: 2222
-      nodePort: 31450
