@@ -48,7 +48,7 @@ spec:
               value: "1000"
             # FIXED: Reduced to Standard Edition limits
             - name: system_scaling_maxqueuemessagecount
-              value: "100000000"  # 100 million messages
+              value: "1"  # 100 million messages
             - name: SOLACE_LOG_TO_STDOUT
               value: "yes"
             - name: SOLACE_CHECK_RSYSLOG
