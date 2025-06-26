@@ -10,7 +10,7 @@ metadata:
   name: solace-secret
   namespace: solace
 stringData:
-  username_admin_password: "admin" # Using password from docker example
+  username_admin_password: "admin"
 
 ---
 apiVersion: apps/v1
@@ -37,7 +37,6 @@ spec:
         - name: solace
           image: solace/solace-pubsub-standard
           env:
-            # Required environment variables
             - name: username_admin_globalaccesslevel
               value: "admin"
             - name: username_admin_password
@@ -46,19 +45,18 @@ spec:
                   name: solace-secret
                   key: username_admin_password
             - name: system_scaling_maxconnectioncount
-              value: "1000"  # Critical missing parameter
+              value: "1000"
+            # FIXED: Reduced to Standard Edition limits
             - name: system_scaling_maxqueuemessagecount
-              value: "100000" # Critical missing parameter
+              value: "100000000"  # 100 million messages
             - name: SOLACE_LOG_TO_STDOUT
               value: "yes"
             - name: SOLACE_CHECK_RSYSLOG
               value: "no"
             - name: nodetype
-              value: "message_routing" # Important for standalone mode
+              value: "message_routing"
             - name: routername
-              value: "myroutername"    # Required router identifier
-            
-            # Additional recommended parameters
+              value: "myroutername"
             - name: service_ssh_port
               value: "2222"
             - name: service_webtransport_port
@@ -77,7 +75,6 @@ spec:
               value: "5672"
             - name: service_smf_port
               value: "55555"
-            
           resources:
             requests:
               memory: "2Gi"
@@ -98,11 +95,11 @@ spec:
               name: mqtt-ws
             - containerPort: 5672
               name: amqp
-            - containerPort: 8883  # MQTT TLS
+            - containerPort: 8883
               name: mqtt-secure
-            - containerPort: 2222  # CLI Secure
+            - containerPort: 2222
               name: cli-secure
-            - containerPort: 55443 # SMF TLS
+            - containerPort: 55443
               name: smf-tls
           volumeMounts:
             - name: dshm
