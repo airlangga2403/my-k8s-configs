@@ -106,18 +106,6 @@ spec:
               mountPath: /usr/sw/var
           securityContext:
             privileged: true
-          livenessProbe:
-            tcpSocket:
-              port: 55555
-            initialDelaySeconds: 60
-            periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /health-check/guaranteed-active
-              # Changed readiness probe port from 5550 to 8080, which is the SEMP/web port.
-              port: 8080
-            initialDelaySeconds: 30
-            periodSeconds: 5
       volumes:
         - name: dshm
           emptyDir:
