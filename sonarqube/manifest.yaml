@@ -1,5 +1,52 @@
+# 1. Namespace untuk mengisolasi SonarQube
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sonarqube
+---
+# 2. Persistent Volume Claims (PVCs) untuk data dan ekstensi SonarQube
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarqube-data-pvc
+  namespace: sonarqube
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarqube-extensions-pvc
+  namespace: sonarqube
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+# 3. Service untuk SonarQube dengan tipe NodePort
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarqube-svc
+  namespace: sonarqube
+spec:
+  type: NodePort
+  selector:
+    app: sonarqube
+  ports:
+    - name: sonarqube-ui
+      protocol: TCP
+      port: 9000
+      targetPort: 9000
+      nodePort: 30099
+---
 # 4. Deployment untuk SonarQube yang terhubung ke PostgreSQL
-# FIX: Kredensial database sekarang dimasukkan langsung (hardcoded)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,7 +62,6 @@ spec:
       labels:
         app: sonarqube
     spec:
-      # PENTING: initContainer untuk mengatur properti kernel
       initContainers:
       - name: sysctl-init
         image: busybox
@@ -27,20 +73,16 @@ spec:
         image: sonarqube:lts-community
         ports:
         - containerPort: 9000
-        # --- Konfigurasi Koneksi Langsung ke PostgreSQL ---
+        # --- PERBAIKAN: Menggunakan kredensial secara langsung (Hardcoded) ---
         env:
-        # URL JDBC menunjuk langsung ke IP dan port NodePort PostgreSQL
         - name: SONAR_JDBC_URL
-          value: "jdbc:postgresql://43.157.209.107:31001/sonar"
-        
-        # Username dimasukkan langsung sebagai plain text
+          value: "jdbc:postgresql://postgres-service.postgres-ha:5432/sonar"
+        # Username dimasukkan langsung, tidak lagi membaca dari Secret
         - name: SONAR_JDBC_USERNAME
           value: "pguser"
-          
-        # Password dimasukkan langsung sebagai plain text (tidak aman)
+        # Password dimasukkan langsung, tidak lagi membaca dari Secret
         - name: SONAR_JDBC_PASSWORD
           value: "pgpass"
-          
         volumeMounts:
         - name: sonarqube-data
           mountPath: /opt/sonarqube/data
