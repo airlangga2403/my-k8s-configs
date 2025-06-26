@@ -8,7 +8,7 @@ spec:
   project: default
   source:
     # !!! PENTING: Ganti dengan URL repo Git Anda !!!
-    repoURL: 'https://github.com/your-username/your-k8s-configs.git'
+    repoURL: 'https://github.com/airlangga2403/my-k8s-configs.git'
     # Path ke folder tempat Anda akan menyimpan file kafka-manifests.yaml
     path: kafka
     targetRevision: HEAD

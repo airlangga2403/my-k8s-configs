@@ -114,8 +114,8 @@ spec:
     protocol: TCP
     port: 9094 # Port internal yang akan di-mapping
     targetPort: 9094
-    # Anda dapat menentukan nodePort secara manual atau membiarkannya dialokasikan secara otomatis
-    # nodePort: 32094
+    # NodePort diatur secara manual ke 32094 agar mudah diakses
+    nodePort: 32094
 ---
 # 6. StatefulSet untuk Kafka Broker
 apiVersion: apps/v1
