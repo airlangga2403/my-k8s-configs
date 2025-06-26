@@ -1,115 +1,176 @@
-# DEVELOPMENT MODE
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: test
+  name: solace
 
 ---
 apiVersion: v1
-kind: Service
+kind: Secret
 metadata:
-  name: kafka-internal
-  namespace: test
-  labels:
-    app: kafka-test
-    unit: kafka
-spec:
-  type: ClusterIP
-  selector:
-    app: kafka-test
-    unit: kafka
-  ports:
-    - name: internal
-      port: 9092
-      targetPort: 9092
-    - name: controller
-      port: 9093
-      targetPort: 9093
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: kafka-external
-  namespace: test
-  labels:
-    app: kafka-test
-    unit: kafka
-spec:
-  type: NodePort
-  selector:
-    app: kafka-test
-    unit: kafka
-  ports:
-    - name: external
-      port: 30992
-      targetPort: 9094
-      nodePort: 30992
+  name: solace-secret
+  namespace: solace
+stringData:
+  username_admin_password: "admin"
 
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: kafka
-  namespace: test
+  name: solace
+  namespace: solace
 spec:
-  serviceName: "kafka-internal"
+  serviceName: "solace-service"
   replicas: 1
   selector:
     matchLabels:
-      app: kafka-test
-      unit: kafka
+      app: solace
   template:
     metadata:
       labels:
-        app: kafka-test
-        unit: kafka
+        app: solace
     spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
-        - name: kafka
-          image: bitnami/kafka:latest
-          ports:
-            - containerPort: 9092
-              name: internal
-            - containerPort: 9093
-              name: controller
-            - containerPort: 9094
-              name: external
+        - name: solace
+          image: solace/solace-pubsub-standard:latest
           env:
-            # KRaft mode configuration
-            - name: KAFKA_ENABLE_KRAFT
+            - name: username_admin_globalaccesslevel
+              value: "admin"
+            - name: username_admin_password
+              valueFrom:
+                secretKeyRef:
+                  name: solace-secret
+                  key: username_admin_password
+            - name: SOLACE_LOG_TO_STDOUT
               value: "yes"
-            - name: KAFKA_CFG_PROCESS_ROLES
-              value: "controller,broker"
-            - name: KAFKA_CFG_NODE_ID
-              value: "1"
-            - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
-              value: "1@kafka-0.kafka-internal.test:9093"
-            
-            # Fixed: Added controller listener names
-            - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
-              value: "CONTROLLER"
-            
-            # Listener configuration
-            - name: KAFKA_CFG_LISTENERS
-              value: "INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:9094"
-            - name: KAFKA_CFG_ADVERTISED_LISTENERS
-              value: "INTERNAL://kafka-0.kafka-internal.test:9092,EXTERNAL://43.157.209.107:30992"
-            - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
-              value: "CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
-            - name: KAFKA_CFG_INTER_BROKER_LISTENER_NAME
-              value: "INTERNAL"
-            
-            # Other Kafka settings
-            - name: KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE
-              value: "true"
-            - name: KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR
-              value: "1"
-            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
-              value: "1"
-            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR
-              value: "1"
-            
-            # Resource settings
-            - name: KAFKA_HEAP_OPTS
-              value: "-Xmx1G -Xms1G"
+            - name: SOLACE_CHECK_RSYSLOG
+              value: "no"
+            - name: nodetype
+              value: "message_routing"
+            - name: routername
+              value: "myroutername"
+            - name: service_ssh_port
+              value: "2222"
+            - name: service_webtransport_port
+              value: "8008"
+            - name: service_smf_tls_port
+              value: "55443"
+            - name: service_jms_tls_port
+              value: "55443"
+            - name: service_mqtt_ws_port
+              value: "8000"
+            - name: service_mqtt_tls_port
+              value: "8883"
+            - name: service_mqtt_port
+              value: "1883"
+            - name: service_amqp_port
+              value: "5672"
+            - name: service_smf_port
+              value: "55555"
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1500m"
+            limits:
+              memory: "3Gi"
+              cpu: "2500m"
+          ports:
+            - containerPort: 8080
+              name: web
+            - containerPort: 55555
+              name: smf
+            - containerPort: 8008
+              name: semp-tls
+            - containerPort: 1883
+              name: mqtt
+            - containerPort: 8000
+              name: mqtt-ws
+            - containerPort: 5672
+              name: amqp
+            - containerPort: 8883
+              name: mqtt-secure
+            - containerPort: 2222
+              name: cli-secure
+            - containerPort: 55443
+              name: smf-tls
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+            - name: solace-storage
+              mountPath: /usr/sw/var
+          securityContext:
+            privileged: true
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: solace-storage
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 10Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: solace-service
+  namespace: solace
+spec:
+  type: NodePort
+  selector:
+    app: solace
+  ports:
+    - name: web
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 30080   # WebUI (http://IP:30080)
+    - name: smf
+      protocol: TCP
+      port: 55555
+      targetPort: 55555
+      nodePort: 30555
+    - name: amqp
+      protocol: TCP
+      port: 5672
+      targetPort: 5672
+      nodePort: 31672
+    - name: semp-tls
+      protocol: TCP
+      port: 8008
+      targetPort: 8008
+      nodePort: 38008
+    - name: mqtt
+      protocol: TCP
+      port: 1883
+      targetPort: 1883
+      nodePort: 31883   # MQTT TCP
+    - name: mqtt-ws
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+      nodePort: 38000   # MQTT WebSocket
+    - name: mqtt-secure
+      protocol: TCP
+      port: 8883
+      targetPort: 8883
+      nodePort: 38883   # MQTT TLS
+    - name: cli-secure
+      protocol: TCP
+      port: 2222
+      targetPort: 2222
+      nodePort: 32222
+    - name: smf-tls
+      protocol: TCP
+      port: 55443
+      targetPort: 55443
+      nodePort: 35443
