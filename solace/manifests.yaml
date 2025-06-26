@@ -114,7 +114,8 @@ spec:
           readinessProbe:
             httpGet:
               path: /health-check/guaranteed-active
-              port: 5550
+              # Changed readiness probe port from 5550 to 8080, which is the SEMP/web port.
+              port: 8080
             initialDelaySeconds: 30
             periodSeconds: 5
       volumes:
