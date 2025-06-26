@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-nodeport
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/airlangga2403/my-k8s-configs.git'
+    path: nginx-nodeport
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nginx-nodeport
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

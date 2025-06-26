@@ -4,17 +4,6 @@ kind: Namespace
 metadata:
   name: kafka
 ---
-# --- BARU: ConfigMap untuk Alamat Eksternal ---
-# Anda HARUS mengedit nilai di bawah ini dengan IP Publik VPS Anda.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: kafka-config
-  namespace: kafka
-data:
-  # !!! GANTI DENGAN IP PUBLIK VPS ANDA !!!
-  KAFKA_EXTERNAL_HOST: "43.157.209.107"
----
 # --- Konfigurasi Zookeeper (Dependensi Kafka) ---
 
 # 2. Service untuk Zookeeper
@@ -42,6 +31,7 @@ metadata:
   namespace: kafka
 spec:
   serviceName: "zookeeper-svc"
+  # Menggunakan 1 replika untuk menghemat sumber daya
   replicas: 1
   selector:
     matchLabels:
@@ -61,6 +51,7 @@ spec:
           value: "2181"
         - name: ZOOKEEPER_TICK_TIME
           value: "2000"
+        # Menentukan permintaan dan batas sumber daya yang rendah
         resources:
           requests:
             cpu: "250m"
@@ -80,7 +71,7 @@ spec:
       accessModes: [ "ReadWriteOnce" ]
       resources:
         requests:
-          storage: 2Gi
+          storage: 2Gi # Ukuran penyimpanan kecil
   - metadata:
       name: zookeeper-log
     spec:
@@ -91,7 +82,7 @@ spec:
 ---
 # --- Konfigurasi Kafka Broker ---
 
-# 4. Service Internal untuk Kafka
+# 4. Service Internal untuk Kafka (komunikasi antar broker)
 apiVersion: v1
 kind: Service
 metadata:
@@ -104,7 +95,7 @@ spec:
   - name: broker
     port: 9092
     protocol: TCP
-  clusterIP: None
+  clusterIP: None # Headless service untuk StatefulSet
   selector:
     app: kafka
 ---
@@ -121,8 +112,9 @@ spec:
   ports:
   - name: kafka-external
     protocol: TCP
-    port: 9094
+    port: 9094 # Port internal yang akan di-mapping
     targetPort: 9094
+    # NodePort diatur secara manual ke 32094 agar mudah diakses
     nodePort: 32094
 ---
 # 6. StatefulSet untuk Kafka Broker
@@ -145,44 +137,51 @@ spec:
       initContainers:
       - name: get-broker-id
         image: busybox:1.28
-        command: ['/bin/sh', '-c', "export BROKER_ID=$(hostname | awk -F'-' '{print $2}') && echo \"broker id is $BROKER_ID\" > /var/lib/kafka/data/broker.id"]
+        command: ['/bin/sh', '-c', "export BROKER_ID=$(hostname | awk -F'-' '{print $2}') && echo \"broker id is $BROKER_ID\" > /var/lib/kafka/data/my-broker-id"]
         volumeMounts:
         - name: kafka-data
           mountPath: /var/lib/kafka/data
-      - name: wait-for-zookeeper
-        image: busybox:1.28
-        command: ['sh', '-c', 'until nslookup zookeeper-svc.kafka.svc.cluster.local; do echo waiting for zookeeper; sleep 2; done;']
       containers:
       - name: kafka
         image: confluentinc/cp-kafka:7.0.1
-        command:
-          - "/bin/bash"
-          - "-c"
-        args:
-          - |
-            export KAFKA_ADVERTISED_LISTENERS="INTERNAL://kafka-0.kafka-svc-internal.kafka.svc.cluster.local:9092,EXTERNAL://${KAFKA_EXTERNAL_HOST}:32094"
-            exec /etc/confluent/docker/run
         ports:
         - name: internal
           containerPort: 9092
         - name: external
           containerPort: 9094
+        # --- PERBAIKAN UTAMA ADA DI SINI ---
+        # Override the command to use a shell for variable substitution
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            # Set the advertised listeners with the expanded host IP
+            export KAFKA_ADVERTISED_LISTENERS="INTERNAL://kafka-0.kafka-svc-internal.kafka.svc.cluster.local:9092,EXTERNAL://${KAFKA_ADVERTISED_HOST_NAME}:32094"
+            
+            # Now, execute the original entrypoint from the Confluent image
+            /etc/confluent/docker/run
         env:
-        # --- PERBAIKAN: Gunakan ConfigMap untuk host eksternal ---
-        # Variabel ini akan mengambil nilai dari ConfigMap yang Anda buat di atas.
-        - name: KAFKA_EXTERNAL_HOST
-          valueFrom:
-            configMapKeyRef:
-              name: kafka-config
-              key: KAFKA_EXTERNAL_HOST
+        # Konfigurasi koneksi ke Zookeeper
         - name: KAFKA_ZOOKEEPER_CONNECT
           value: "zookeeper-svc:2181"
+        # Konfigurasi listener internal (dalam cluster) dan eksternal (luar cluster)
         - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
           value: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
         - name: KAFKA_INTER_BROKER_LISTENER_NAME
           value: "INTERNAL"
+        
+        # We REMOVED KAFKA_ADVERTISED_LISTENERS from here because it's now set in the 'args' above.
+        
+        # Ambil nama host (IP node) dari Downward API. Ini penting untuk NodePort.
+        - name: KAFKA_ADVERTISED_HOST_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+              
+        # --- PERBAIKAN LAINNYA ---
+        # Broker ID tidak lagi di-hardcode, dibaca dari file yang dibuat oleh initContainer
+        # Note: I've updated the file path to avoid conflicts and make it clearer.
         - name: KAFKA_BROKER_ID_COMMAND
-          value: "cat /var/lib/kafka/data/broker.id"
+          value: "cat /var/lib/kafka/data/my-broker-id"
         - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
           value: "1"
         - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
