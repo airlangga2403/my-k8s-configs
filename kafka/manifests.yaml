@@ -2,12 +2,13 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: test
+
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: kafka-internal
-  namespace: kafka
+  namespace: test
   labels:
     app: kafka-test
     unit: kafka
@@ -17,16 +18,19 @@ spec:
     app: kafka-test
     unit: kafka
   ports:
-    - name: kafka
+    - name: internal
       port: 9092
       targetPort: 9092
-      protocol: TCP
+    - name: controller
+      port: 9093
+      targetPort: 9093
+
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: kafka-external
-  namespace: kafka
+  namespace: test
   labels:
     app: kafka-test
     unit: kafka
@@ -36,17 +40,17 @@ spec:
     app: kafka-test
     unit: kafka
   ports:
-    - name: kafka
-      port: 9092
-      targetPort: 9092
-      protocol: TCP
+    - name: external
+      port: 30992
+      targetPort: 9094
       nodePort: 30992
+
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: kafka
-  namespace: kafka
+  namespace: test
 spec:
   serviceName: "kafka-internal"
   replicas: 1
@@ -65,48 +69,46 @@ spec:
           image: bitnami/kafka:latest
           ports:
             - containerPort: 9092
+              name: internal
+            - containerPort: 9093
+              name: controller
+            - containerPort: 9094
+              name: external
           env:
-            - name: KAFKA_CFG_LISTENERS
-              value: PLAINTEXT://:9092
-            - name: KAFKA_CFG_ADVERTISED_LISTENERS
-              value: PLAINTEXT://43.157.209.107:30992
-            - name: KAFKA_CFG_ZOOKEEPER_CONNECT
-              value: zookeeper:2181
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: zookeeper
-  namespace: kafka
-spec:
-  ports:
-    - port: 2181
-      targetPort: 2181
-      protocol: TCP
-      name: client
-  selector:
-    app: zookeeper
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: zookeeper
-  namespace: kafka
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: zookeeper
-  template:
-    metadata:
-      labels:
-        app: zookeeper
-    spec:
-      containers:
-        - name: zookeeper
-          image: bitnami/zookeeper:latest
-          ports:
-            - containerPort: 2181
-          env:
-            - name: ALLOW_ANONYMOUS_LOGIN
+            # KRaft mode configuration
+            - name: KAFKA_ENABLE_KRAFT
               value: "yes"
+            - name: KAFKA_CFG_PROCESS_ROLES
+              value: "controller,broker"
+            - name: KAFKA_CFG_NODE_ID
+              value: "1"
+            - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
+              value: "1@kafka-0.kafka-internal.test:9093"
+            
+            # Listener configuration
+            - name: KAFKA_CFG_LISTENERS
+              value: "INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:9094"
+            - name: KAFKA_CFG_ADVERTISED_LISTENERS
+              value: "INTERNAL://kafka-0.kafka-internal.test:9092,EXTERNAL://43.157.209.107:30992"
+            - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
+            - name: KAFKA_CFG_INTER_BROKER_LISTENER_NAME
+              value: "INTERNAL"
+            
+            # Other Kafka settings
+            - name: KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE
+              value: "true"
+            - name: KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR
+              value: "1"
+            
+            # Resource settings (adjust according to your needs)
+            - name: KAFKA_HEAP_OPTS
+              value: "-Xmx1G -Xms1G"
+            - name: KAFKA_CFG_LOG_FLUSH_INTERVAL_MESSAGES
+              value: "10000"
+            - name: KAFKA_CFG_LOG_RETENTION_HOURS
+              value: "72"
