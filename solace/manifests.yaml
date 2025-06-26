@@ -1,62 +1,267 @@
-# docker-compose -f PubSubStandard_singleNode.yml up
-version: '3.3'
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: solace
 
-services:
-  primary:
-    container_name: pubSubStandardSingleNode
-    image: solace/solace-pubsub-standard:latest
-    volumes:
-      - "storage-group:/var/lib/solace"
-    shm_size: 1g
-    ulimits:
-      core: -1
-      nofile:
-        soft: 2448
-        hard: 1048576
-    deploy:
-      restart_policy:
-        condition: on-failure
-        max_attempts: 1
-    ports:
-    #Port Mappings:  With the exception of SMF, ports are mapped straight
-    #through from host to container.  This may result in port collisions on
-    #commonly used ports that will cause failure of the container to start.
-      #Web transport
-      - '8008:8008'
-      #Web transport over TLS
-      - '1443:1443'
-      #SEMP over TLS
-      - '1943:1943'
-      #MQTT Default VPN
-      - '1883:1883'
-      #AMQP Default VPN over TLS
-      - '5671:5671'
-      #AMQP Default VPN
-      - '5672:5672'
-      #MQTT Default VPN over WebSockets
-      - '8000:8000'
-      #MQTT Default VPN over WebSockets / TLS
-      - '8443:8443'
-      #MQTT Default VPN over TLS
-      - '8883:8883'
-      #SEMP / PubSub+ Manager
-      - '8080:8080'
-      #REST Default VPN
-      - '9000:9000'
-      #REST Default VPN over TLS
-      - '9443:9443'
-      #SMF
-      - '55554:55555'
-      #SMF Compressed
-      - '55003:55003'
-      #SMF over TLS
-      - '55443:55443'
-      #SSH connection to CLI
-      - '2222:2222'
-    environment:
-      - username_admin_globalaccesslevel=admin
-      - username_admin_password=admin
-      - system_scaling_maxconnectioncount=100
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: solace-secret
+  namespace: solace
+stringData:
+  username_admin_password: "admin"
 
-volumes:
-  storage-group:
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: solace
+  namespace: solace
+spec:
+  serviceName: "solace-internal"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: solace
+  template:
+    metadata:
+      labels:
+        app: solace
+    spec:
+      # Critical host settings for Consul workaround
+      hostname: solace-pubsub
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: solace
+          # Use specific stable version
+          image: solace/solace-pubsub-standard:10.14.0.28
+          env:
+            - name: username_admin_globalaccesslevel
+              value: "admin"
+            - name: username_admin_password
+              valueFrom:
+                secretKeyRef:
+                  name: solace-secret
+                  key: username_admin_password
+            # Critical parameters to fix errors
+            - name: system_scaling_maxconnectioncount
+              value: "1000"
+            - name: system_scaling_maxqueuemessagecount
+              value: "100000000"
+            - name: disable_consul
+              value: "true"  # Explicitly disable Consul
+            - name: disable_rsyslogd
+              value: "yes"
+            - name: vm_no_invtsc
+              value: "true"
+            - name: service_healthcheck_port
+              value: "5550"
+            - name: SOLACE_LOG_TO_STDOUT
+              value: "yes"
+            - name: SOLACE_CHECK_RSYSLOG
+              value: "no"
+            - name: nodetype
+              value: "message_routing"
+            - name: routername
+              value: "myroutername"
+            - name: service_ssh_port
+              value: "2222"
+            - name: service_webtransport_port
+              value: "8008"
+            - name: service_smf_tls_port
+              value: "55443"
+            - name: service_jms_tls_port
+              value: "55443"
+            - name: service_mqtt_ws_port
+              value: "8000"
+            - name: service_mqtt_tls_port
+              value: "8883"
+            - name: service_mqtt_port
+              value: "1883"
+            - name: service_amqp_port
+              value: "5672"
+            - name: service_smf_port
+              value: "55555"
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1500m"
+            limits:
+              memory: "3Gi"
+              cpu: "2500m"
+          ports:
+            - containerPort: 8080
+              name: web
+            - containerPort: 55555
+              name: smf
+            - containerPort: 8008
+              name: semp-tls
+            - containerPort: 1883
+              name: mqtt
+            - containerPort: 8000
+              name: mqtt-ws
+            - containerPort: 5672
+              name: amqp
+            - containerPort: 8883
+              name: mqtt-secure
+            - containerPort: 2222
+              name: cli-secure
+            - containerPort: 55443
+              name: smf-tls
+            - containerPort: 5550
+              name: health
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+            - name: solace-storage
+              mountPath: /usr/sw/var
+          securityContext:
+            privileged: true
+          # Health checks with sufficient delays
+          readinessProbe:
+            httpGet:
+              path: /health-check/guaranteed-active
+              port: health
+            initialDelaySeconds: 300  # 5 minutes
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: smf
+            initialDelaySeconds: 240  # 4 minutes
+            periodSeconds: 10
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: solace-storage
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 10Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: solace-internal
+  namespace: solace
+  labels:
+    app: solace
+    type: internal
+spec:
+  type: ClusterIP
+  selector:
+    app: solace
+  ports:
+    - name: web-internal
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+    - name: smf-internal
+      protocol: TCP
+      port: 55555
+      targetPort: 55555
+    - name: amqp-internal
+      protocol: TCP
+      port: 5672
+      targetPort: 5672
+    - name: semp-tls-internal
+      protocol: TCP
+      port: 8008
+      targetPort: 8008
+    - name: mqtt-internal
+      protocol: TCP
+      port: 1883
+      targetPort: 1883
+    - name: mqtt-ws-internal
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+    - name: mqtt-secure-internal
+      protocol: TCP
+      port: 8883
+      targetPort: 8883
+    - name: cli-secure-internal
+      protocol: TCP
+      port: 2222
+      targetPort: 2222
+    - name: smf-tls-internal
+      protocol: TCP
+      port: 55443
+      targetPort: 55443
+    - name: health-internal
+      protocol: TCP
+      port: 5550
+      targetPort: 5550
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: solace-external
+  namespace: solace
+  labels:
+    app: solace
+    type: external
+spec:
+  type: NodePort
+  selector:
+    app: solace
+  ports:
+    - name: web
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 30080
+    - name: smf
+      protocol: TCP
+      port: 55555
+      targetPort: 55555
+      nodePort: 30555
+    - name: amqp
+      protocol: TCP
+      port: 5672
+      targetPort: 5672
+      nodePort: 31672
+    - name: semp-tls
+      protocol: TCP
+      port: 8008
+      targetPort: 8008
+      nodePort: 30008
+    - name: mqtt
+      protocol: TCP
+      port: 1883
+      targetPort: 1883
+      nodePort: 31883
+    - name: mqtt-ws
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+      nodePort: 30000
+    - name: mqtt-secure
+      protocol: TCP
+      port: 8883
+      targetPort: 8883
+      nodePort: 30001
+    - name: cli-secure
+      protocol: TCP
+      port: 2222
+      targetPort: 2222
+      nodePort: 30222
+    - name: smf-tls
+      protocol: TCP
+      port: 55443
+      targetPort: 55443
+      nodePort: 30543

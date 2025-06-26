@@ -1,0 +1,86 @@
+# kafdrop-manifests.yaml
+# Manifes Kubernetes untuk Kafdrop
+# Simpan file ini di path yang ditentukan di atas (misal: 'kafdrop/kafdrop-manifests.yaml' di repo Anda)
+
+# 1. Namespace untuk mengisolasi Kafdrop
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kafdrop
+---
+# 2. Service untuk Kafdrop dengan tipe NodePort
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafdrop-svc
+  namespace: kafdrop
+  labels:
+    app: kafdrop
+spec:
+  type: NodePort # Menggunakan NodePort agar dapat diakses dari luar cluster
+  selector:
+    app: kafdrop # Selector harus cocok dengan label di deployment
+  ports:
+    - name: http-ui
+      protocol: TCP
+      port: 9000 # Port internal service dan port default Kafdrop
+      targetPort: 9000 # Port container yang diekspos
+      nodePort: 30090 # Port NodePort yang akan dibuka di setiap node
+                       # Pastikan port ini tidak bentrok dengan service lain
+---
+# 3. Deployment untuk Kafdrop
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafdrop-deployment
+  namespace: kafdrop
+  labels:
+    app: kafdrop
+spec:
+  replicas: 1 # Jumlah instance Kafdrop yang ingin Anda jalankan
+  selector:
+    matchLabels:
+      app: kafdrop
+  template:
+    metadata:
+      labels:
+        app: kafdrop
+    spec:
+      containers:
+      - name: kafdrop
+        image: obsidiandynamics/kafdrop:latest # Menggunakan image Kafdrop terbaru
+        ports:
+        - containerPort: 9000 # Port default Kafdrop UI
+        env:
+        # PENTING: Ganti 'your-kafka-broker:9092' dengan alamat broker Kafka Anda
+        # Jika Kafka Anda di dalam cluster Kubernetes, gunakan nama service Kafka Anda (misal: 'my-kafka-svc:9092')
+        - name: KAFKA_BROKERCONNECT
+          value: "your-kafka-broker:9092"
+        # Opsional: Jika Anda ingin memantau beberapa cluster Kafka
+        # - name: KAFKA_BROKERCONNECT_2
+        #   value: "another-kafka-broker:9092"
+        # Opsional: Jika Anda menggunakan Schema Registry
+        # - name: SCHEMAREGISTRY_CONNECT
+        #   value: "your-schema-registry:8081"
+        # Opsional: Konfigurasi lain, contohnya untuk pengaturan memori JVM
+        # - name: JVM_OPTS
+        #   value: "-Xms32M -Xmx128M"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 9000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 9000
+          initialDelaySeconds: 15
+          periodSeconds: 5

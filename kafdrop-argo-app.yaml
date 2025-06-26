@@ -1,0 +1,27 @@
+# argocd-app-kafdrop.yaml
+# Manifes Aplikasi Argo CD untuk Kafdrop
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  # Nama aplikasi di Argo CD
+  name: kafdrop
+  namespace: argocd # Pastikan Argo CD diinstal di namespace ini
+spec:
+  project: default # Ganti jika Anda memiliki project Argo CD lain
+  source:
+    # Ganti dengan URL repo Git Anda
+    repoURL: 'https://github.com/airlangga2403/my-k8s-configs.git'
+    # Path ke folder tempat Anda menyimpan manifes Kafdrop (misalnya, di dalam repo Anda)
+    path: kafdrop
+    targetRevision: HEAD # Atau branch/tag tertentu, misal 'main'
+  destination:
+    server: https://kubernetes.default.svc
+    # Namespace tujuan untuk deployment Kafdrop
+    namespace: kafdrop
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # Membuat namespace 'kafdrop' jika belum ada
+      - CreateNamespace=true
