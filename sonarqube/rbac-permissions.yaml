@@ -1,0 +1,35 @@
+# 1. Role: Mendefinisikan Izin "Apa yang boleh dilakukan?"
+# Role ini memberikan izin untuk 'get' (membaca) sebuah secret spesifik.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  # Role ini dibuat di namespace tempat secret berada
+  name: sonarqube-secret-reader-role
+  namespace: postgres-ha
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  # Memberikan izin HANYA untuk secret dengan nama 'postgres-secret'
+  resourceNames: ["postgres-secret"]
+  verbs: ["get"]
+---
+# 2. RoleBinding: Menghubungkan Izin dengan Pengguna "Siapa yang boleh melakukannya?"
+# RoleBinding ini memberikan izin dari 'sonarqube-secret-reader-role'
+# kepada Service Account yang digunakan oleh pod SonarQube.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  # Binding ini juga dibuat di namespace tempat secret berada
+  name: sonarqube-read-postgres-secret-binding
+  namespace: postgres-ha
+subjects:
+  # Memberikan izin kepada 'default' Service Account
+  # yang berada di namespace 'sonarqube-prod'
+- kind: ServiceAccount
+  name: default
+  namespace: sonarqube
+roleRef:
+  # Menghubungkan ke Role yang baru saja kita buat
+  kind: Role
+  name: sonarqube-secret-reader-role
+  apiGroup: rbac.authorization.k8s.io
