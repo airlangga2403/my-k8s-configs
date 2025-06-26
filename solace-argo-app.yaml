@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: solace-pubsub
+  name: solace
   namespace: argocd
 spec:
   project: default

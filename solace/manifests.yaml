@@ -16,7 +16,7 @@ stringData:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: solace-pubsub
+  name: solace
   namespace: solace
 spec:
   serviceName: "solace-service"
@@ -35,7 +35,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: solace
-          image: solace/solace-pubsub-standard
+          image: solace/solace-standard
           env:
             - name: username_admin_globalaccesslevel
               value: "admin"
@@ -44,11 +44,6 @@ spec:
                 secretKeyRef:
                   name: solace-secret
                   key: username_admin_password
-            - name: system_scaling_maxconnectioncount
-              value: "1000"
-            # FIXED: Reduced to Standard Edition limits
-            - name: system_scaling_maxqueuemessagecount
-              value: "1"  # 100 million messages
             - name: SOLACE_LOG_TO_STDOUT
               value: "yes"
             - name: SOLACE_CHECK_RSYSLOG
