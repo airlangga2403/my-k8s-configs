@@ -1,248 +1,62 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: solace
+# docker-compose -f PubSubStandard_singleNode.yml up
+version: '3.3'
 
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: solace-secret
-  namespace: solace
-stringData:
-  username_admin_password: "admin"
+services:
+  primary:
+    container_name: pubSubStandardSingleNode
+    image: solace/solace-pubsub-standard:latest
+    volumes:
+      - "storage-group:/var/lib/solace"
+    shm_size: 1g
+    ulimits:
+      core: -1
+      nofile:
+        soft: 2448
+        hard: 1048576
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 1
+    ports:
+    #Port Mappings:  With the exception of SMF, ports are mapped straight
+    #through from host to container.  This may result in port collisions on
+    #commonly used ports that will cause failure of the container to start.
+      #Web transport
+      - '8008:8008'
+      #Web transport over TLS
+      - '1443:1443'
+      #SEMP over TLS
+      - '1943:1943'
+      #MQTT Default VPN
+      - '1883:1883'
+      #AMQP Default VPN over TLS
+      - '5671:5671'
+      #AMQP Default VPN
+      - '5672:5672'
+      #MQTT Default VPN over WebSockets
+      - '8000:8000'
+      #MQTT Default VPN over WebSockets / TLS
+      - '8443:8443'
+      #MQTT Default VPN over TLS
+      - '8883:8883'
+      #SEMP / PubSub+ Manager
+      - '8080:8080'
+      #REST Default VPN
+      - '9000:9000'
+      #REST Default VPN over TLS
+      - '9443:9443'
+      #SMF
+      - '55554:55555'
+      #SMF Compressed
+      - '55003:55003'
+      #SMF over TLS
+      - '55443:55443'
+      #SSH connection to CLI
+      - '2222:2222'
+    environment:
+      - username_admin_globalaccesslevel=admin
+      - username_admin_password=admin
+      - system_scaling_maxconnectioncount=100
 
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: solace
-  namespace: solace
-spec:
-  serviceName: "solace-internal"
-  replicas: 1
-  selector:
-    matchLabels:
-      app: solace
-  template:
-    metadata:
-      labels:
-        app: solace
-    spec:
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
-      containers:
-        - name: solace
-          image: solace/solace-pubsub-standard:latest
-          env:
-            - name: username_admin_globalaccesslevel
-              value: "admin"
-            - name: username_admin_password
-              valueFrom:
-                secretKeyRef:
-                  name: solace-secret
-                  key: username_admin_password
-            - name: system_scaling_maxconnectioncount
-              value: "1000"
-            # Fixed: Add required environment variables
-            - name: redundancy_enable
-              value: "no"
-            - name: redundancy_group_node_myroutername_nodetype
-              value: "message_routing"
-            - name: redundancy_group_node_myroutername_connectvia
-              value: "127.0.0.1"
-          resources:
-            requests:
-              memory: "2Gi"
-              cpu: "1000m"
-            limits:
-              memory: "4Gi"
-              cpu: "2000m"
-          ports:
-            - containerPort: 8080
-              name: web
-              protocol: TCP
-            - containerPort: 55555
-              name: smf
-              protocol: TCP
-            - containerPort: 8008
-              name: semp-tls
-              protocol: TCP
-            - containerPort: 1883
-              name: mqtt
-              protocol: TCP
-            - containerPort: 8000
-              name: mqtt-ws
-              protocol: TCP
-            - containerPort: 5672
-              name: amqp
-              protocol: TCP
-            - containerPort: 8883
-              name: mqtt-tls
-              protocol: TCP
-            - containerPort: 2222
-              name: ssh
-              protocol: TCP
-            - containerPort: 55443
-              name: smf-tls
-              protocol: TCP
-          volumeMounts:
-            - name: dshm
-              mountPath: /dev/shm
-            - name: solace-storage
-              mountPath: /usr/sw/var
-            - name: solace-logs
-              mountPath: /usr/sw/var/log
-          # Fixed: Use more specific security context instead of privileged
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              add:
-                - SYS_NICE
-                - IPC_LOCK
-          # Add readiness and liveness probes
-          readinessProbe:
-            tcpSocket:
-              port: 8080
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
-          livenessProbe:
-            tcpSocket:
-              port: 8080
-            initialDelaySeconds: 60
-            periodSeconds: 30
-            timeoutSeconds: 10
-            failureThreshold: 3
-      volumes:
-        - name: dshm
-          emptyDir:
-            medium: Memory
-            sizeLimit: 1Gi
-        - name: solace-logs
-          emptyDir: {}
-  volumeClaimTemplates:
-    - metadata:
-        name: solace-storage
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        # Fixed: Use a more common storage class
-        storageClassName: "" # Use default storage class
-        resources:
-          requests:
-            storage: 20Gi
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: solace-internal
-  namespace: solace
-  labels:
-    app: solace
-    type: internal
-spec:
-  type: ClusterIP
-  clusterIP: None # Headless service for StatefulSet
-  selector:
-    app: solace
-  ports:
-    - name: web
-      port: 8080
-      targetPort: 8080
-      protocol: TCP
-    - name: smf
-      port: 55555
-      targetPort: 55555
-      protocol: TCP
-    - name: amqp
-      port: 5672
-      targetPort: 5672
-      protocol: TCP
-    - name: semp-tls
-      port: 8008
-      targetPort: 8008
-      protocol: TCP
-    - name: mqtt
-      port: 1883
-      targetPort: 1883
-      protocol: TCP
-    - name: mqtt-ws
-      port: 8000
-      targetPort: 8000
-      protocol: TCP
-    - name: mqtt-tls
-      port: 8883
-      targetPort: 8883
-      protocol: TCP
-    - name: ssh
-      port: 2222
-      targetPort: 2222
-      protocol: TCP
-    - name: smf-tls
-      port: 55443
-      targetPort: 55443
-      protocol: TCP
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: solace-external
-  namespace: solace
-  labels:
-    app: solace
-    type: external
-spec:
-  type: NodePort
-  selector:
-    app: solace
-  ports:
-    - name: web
-      port: 8080
-      targetPort: 8080
-      nodePort: 30080
-      protocol: TCP
-    - name: smf
-      port: 55555
-      targetPort: 55555
-      nodePort: 30555
-      protocol: TCP
-    - name: amqp
-      port: 5672
-      targetPort: 5672
-      nodePort: 31672
-      protocol: TCP
-    - name: semp-tls
-      port: 8008
-      targetPort: 8008
-      nodePort: 30008
-      protocol: TCP
-    - name: mqtt
-      port: 1883
-      targetPort: 1883
-      nodePort: 31883
-      protocol: TCP
-    - name: mqtt-ws
-      port: 8000
-      targetPort: 8000
-      nodePort: 30000
-      protocol: TCP
-    - name: mqtt-tls
-      port: 8883
-      targetPort: 8883
-      nodePort: 30883
-      protocol: TCP
-    - name: ssh
-      port: 2222
-      targetPort: 2222
-      nodePort: 32222
-      protocol: TCP
-    - name: smf-tls
-      port: 55443
-      targetPort: 55443
-      nodePort: 30443
-      protocol: TCP
+volumes:
+  storage-group:
