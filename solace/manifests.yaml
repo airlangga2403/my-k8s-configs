@@ -1,38 +1,18 @@
-# ===================================================================
-# ANNOTATED SOLACE DEPLOYMENT FOR KUBERNETES
-#
-# This manifest is adapted from the standard 'docker run' command
-# to ensure all necessary configurations are included.
-# ===================================================================
-
-# =====================================
-# Namespace: solace
-# A dedicated namespace to logically isolate the Solace resources.
-# =====================================
 apiVersion: v1
 kind: Namespace
 metadata:
   name: solace
+
 ---
-# =====================================
-# Secret: solace-secret
-# Stores sensitive data, like the admin password, separately from
-# the Pod definition for better security.
-# =====================================
 apiVersion: v1
 kind: Secret
 metadata:
   name: solace-secret
   namespace: solace
 stringData:
-  # The password for the 'admin' user of the Solace broker.
-  username_admin_password: "admin" # Menggunakan password dari contoh docker run
+  username_admin_password: "admin" # Using password from docker example
+
 ---
-# =====================================
-# StatefulSet: solace-pubsub
-# Manages the Solace Pod. A StatefulSet is used because it provides
-# stable, unique network identifiers and stable, persistent storage.
-# =====================================
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -57,7 +37,7 @@ spec:
         - name: solace
           image: solace/solace-pubsub-standard
           env:
-            # --- PERBAIKAN: Menambahkan variabel lingkungan dari docker run ---
+            # Required environment variables
             - name: username_admin_globalaccesslevel
               value: "admin"
             - name: username_admin_password
@@ -65,10 +45,39 @@ spec:
                 secretKeyRef:
                   name: solace-secret
                   key: username_admin_password
+            - name: system_scaling_maxconnectioncount
+              value: "1000"  # Critical missing parameter
+            - name: system_scaling_maxqueuemessagecount
+              value: "100000" # Critical missing parameter
             - name: SOLACE_LOG_TO_STDOUT
               value: "yes"
             - name: SOLACE_CHECK_RSYSLOG
               value: "no"
+            - name: nodetype
+              value: "message_routing" # Important for standalone mode
+            - name: routername
+              value: "myroutername"    # Required router identifier
+            
+            # Additional recommended parameters
+            - name: service_ssh_port
+              value: "2222"
+            - name: service_webtransport_port
+              value: "8008"
+            - name: service_smf_tls_port
+              value: "55443"
+            - name: service_jms_tls_port
+              value: "55443"
+            - name: service_mqtt_ws_port
+              value: "8000"
+            - name: service_mqtt_tls_port
+              value: "8883"
+            - name: service_mqtt_port
+              value: "1883"
+            - name: service_amqp_port
+              value: "5672"
+            - name: service_smf_port
+              value: "55555"
+            
           resources:
             requests:
               memory: "2Gi"
@@ -77,23 +86,24 @@ spec:
               memory: "3Gi"
               cpu: "2500m"
           ports:
-            # --- PERBAIKAN: Menambahkan semua port dari docker run ---
-            - containerPort: 8080 # Web UI
+            - containerPort: 8080
               name: web
-            - containerPort: 55555 # SMF
+            - containerPort: 55555
               name: smf
-            - containerPort: 8008  # SEMP over TLS
+            - containerPort: 8008
               name: semp-tls
-            - containerPort: 1883  # MQTT
+            - containerPort: 1883
               name: mqtt
-            - containerPort: 8000  # MQTT over WS
+            - containerPort: 8000
               name: mqtt-ws
-            - containerPort: 5672  # AMQP
+            - containerPort: 5672
               name: amqp
-            - containerPort: 9000  # MQTT Secure
+            - containerPort: 8883  # MQTT TLS
               name: mqtt-secure
             - containerPort: 2222  # CLI Secure
               name: cli-secure
+            - containerPort: 55443 # SMF TLS
+              name: smf-tls
           volumeMounts:
             - name: dshm
               mountPath: /dev/shm
@@ -101,8 +111,18 @@ spec:
               mountPath: /usr/sw/var
           securityContext:
             privileged: true
+          livenessProbe:
+            tcpSocket:
+              port: 55555
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health-check/guaranteed-active
+              port: 5550
+            initialDelaySeconds: 30
+            periodSeconds: 5
       volumes:
-        # --- PERBAIKAN: Menyesuaikan ukuran SHM dengan docker run (--shm-size=2g) ---
         - name: dshm
           emptyDir:
             medium: Memory
@@ -116,25 +136,18 @@ spec:
         resources:
           requests:
             storage: 10Gi
+
 ---
-# =====================================
-# Service: solace-service (LoadBalancer)
-# Exposes the Solace Pod to the internet via a cloud Load Balancer.
-# =====================================
 apiVersion: v1
 kind: Service
 metadata:
   name: solace-service
   namespace: solace
 spec:
-  # --- PERBAIKAN: Mengubah tipe Service menjadi LoadBalancer ---
-  # Ini akan secara otomatis membuat Load Balancer di provider cloud Anda.
   type: LoadBalancer
   selector:
     app: solace
   ports:
-    # --- PERBAIKAN: Menambahkan semua port dari docker run ---
-    # NodePort tidak perlu didefinisikan secara manual saat menggunakan LoadBalancer.
     - name: web
       protocol: TCP
       port: 8080
@@ -161,9 +174,13 @@ spec:
       targetPort: 8000
     - name: mqtt-secure
       protocol: TCP
-      port: 9000
-      targetPort: 9000
+      port: 8883
+      targetPort: 8883
     - name: cli-secure
       protocol: TCP
       port: 2222
       targetPort: 2222
+    - name: smf-tls
+      protocol: TCP
+      port: 55443
+      targetPort: 55443
