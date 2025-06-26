@@ -135,6 +135,14 @@ spec:
       labels:
         app: kafka
     spec:
+      # PERBAIKAN: Menambahkan initContainer untuk mengekstrak broker id
+      initContainers:
+      - name: get-broker-id
+        image: busybox:1.28
+        command: ['/bin/sh', '-c', "export BROKER_ID=$(hostname | awk -F'-' '{print $2}') && echo \"broker id is $BROKER_ID\" > /var/lib/kafka/data/broker.id"]
+        volumeMounts:
+        - name: kafka-data
+          mountPath: /var/lib/kafka/data
       containers:
       - name: kafka
         image: confluentinc/cp-kafka:7.0.1
@@ -147,23 +155,24 @@ spec:
         # Konfigurasi koneksi ke Zookeeper
         - name: KAFKA_ZOOKEEPER_CONNECT
           value: "zookeeper-svc:2181"
-        # Konfigurasi listener internal (dalam cluster)
+        # Konfigurasi listener internal (dalam cluster) dan eksternal (luar cluster)
         - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
           value: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
         - name: KAFKA_INTER_BROKER_LISTENER_NAME
           value: "INTERNAL"
-        # Konfigurasi listener eksternal (via NodePort)
-        # Broker akan mengiklankan dirinya pada port 9094. Service NodePort akan meneruskan traffic ke sini.
+        # --- PERBAIKAN UTAMA ADA DI SINI ---
+        # Mengiklankan NodePort (32094) untuk listener eksternal, bukan port internal (9094)
         - name: KAFKA_ADVERTISED_LISTENERS
-          value: "INTERNAL://kafka-0.kafka-svc-internal.kafka.svc.cluster.local:9092,EXTERNAL://$(KAFKA_ADVERTISED_HOST_NAME):9094"
+          value: "INTERNAL://kafka-0.kafka-svc-internal.kafka.svc.cluster.local:9092,EXTERNAL://$(KAFKA_ADVERTISED_HOST_NAME):32094"
         # Ambil nama host (IP node) dari Downward API. Ini penting untuk NodePort.
         - name: KAFKA_ADVERTISED_HOST_NAME
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
-        # Konfigurasi lainnya untuk setup minimal
-        - name: KAFKA_BROKER_ID
-          value: "1"
+        # --- PERBAIKAN LAINNYA ---
+        # Broker ID tidak lagi di-hardcode, dibaca dari file yang dibuat oleh initContainer
+        - name: KAFKA_BROKER_ID_COMMAND
+          value: "cat /var/lib/kafka/data/broker.id"
         - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
           value: "1"
         - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
