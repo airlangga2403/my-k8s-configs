@@ -1,0 +1,99 @@
+# minio/manifests.yaml
+
+# Secret untuk menyimpan kredensial Minio
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-secret
+  namespace: minio
+stringData:
+  MINIO_ROOT_USER: "minioadmin"
+  MINIO_ROOT_PASSWORD: "PasswordMinio123"
+---
+# Persistent Volume Claim untuk menyimpan data Minio
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+  namespace: minio
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+# Deployment untuk menjalankan pod Minio
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio-deployment
+  namespace: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+      - name: minio
+        # Menggunakan image resmi dari Docker Hub
+        image: minio/minio:latest
+        command:
+          - /bin/bash
+          - -c
+          - |
+            minio server /data --console-address ":9001"
+        envFrom:
+          - secretRef:
+              name: minio-secret
+        ports:
+          - containerPort: 9000
+            name: api
+          - containerPort: 9001
+            name: console
+        volumeMounts:
+          - name: storage
+            mountPath: /data
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: minio-pvc
+---
+# Service untuk mengakses API Minio (port 9000)
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-api-service
+  namespace: minio
+spec:
+  type: NodePort
+  selector:
+    app: minio
+  ports:
+    - protocol: TCP
+      port: 9000
+      targetPort: 9000
+      nodePort: 32000
+      name: api
+---
+# Service untuk mengakses Console Minio (port 9001)
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-console-service
+  namespace: minio
+spec:
+  type: NodePort
+  selector:
+    app: minio
+  ports:
+    - protocol: TCP
+      port: 9001
+      targetPort: 9001
+      nodePort: 32001
+      name: console

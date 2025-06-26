@@ -1,0 +1,68 @@
+# postgres/manifests.yaml
+
+# Secret untuk database PostgreSQL
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: postgres-ha
+stringData:
+  POSTGRES_USER: "pguser"
+  POSTGRES_PASSWORD: "pgpass"
+  POSTGRES_DB: "mydb"
+---
+# StatefulSet untuk menjalankan pod PostgreSQL
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-statefulset
+  namespace: postgres-ha
+spec:
+  serviceName: "postgres-service"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        # Menggunakan image resmi dari Docker Hub
+        image: postgres:16 # Menggunakan versi spesifik lebih disarankan
+        envFrom:
+        - secretRef:
+            name: postgres-secret
+        ports:
+        - containerPort: 5432
+          name: postgres
+        volumeMounts:
+        - name: postgredb
+          mountPath: /var/lib/postgresql/data
+  # Template untuk membuat Persistent Volume Claim secara dinamis
+  volumeClaimTemplates:
+  - metadata:
+      name: postgredb
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
+---
+# Service untuk mengakses PostgreSQL
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: postgres-ha
+spec:
+  type: NodePort
+  selector:
+    app: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+      nodePort: 31001

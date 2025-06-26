@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minio
+  namespace: argocd
+spec:
+  project: default
+  source:
+    # Tunjuk ke repositori Git Anda
+    repoURL: 'https://github.com/airlangga2403/my-k8s-configs.git'
+    # Path ke folder tempat Anda menyimpan manifes Minio
+    path: minio
+    # Target branch atau revisi
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: minio
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

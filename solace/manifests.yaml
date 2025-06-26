@@ -1,0 +1,91 @@
+# solace/manifests.yaml
+
+# Secret untuk admin user
+apiVersion: v1
+kind: Secret
+metadata:
+  name: solace-secret
+  namespace: solace
+stringData:
+  username_admin_password: "PasswordSolace123"
+---
+# StatefulSet untuk menjalankan broker Solace
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: solace-pubsub
+  namespace: solace
+spec:
+  serviceName: "solace-service"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: solace
+  template:
+    metadata:
+      labels:
+        app: solace
+    spec:
+      containers:
+      - name: solace
+        # Menggunakan image resmi dari Docker Hub
+        image: solace/solace-pubsub-standard:latest
+        env:
+          - name: username_admin_password
+            valueFrom:
+              secretKeyRef:
+                name: solace-secret
+                key: username_admin_password
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "1500m"
+        ports:
+          - containerPort: 8080 # Web UI
+            name: web
+          - containerPort: 55555 # SMF
+            name: smf
+          - containerPort: 5672 # AMQP
+            name: amqp
+        volumeMounts:
+        - name: solace-storage
+          mountPath: /usr/sw/var
+  # Volume Claim untuk message spool dan konfigurasi
+  volumeClaimTemplates:
+  - metadata:
+      name: solace-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
+---
+# Service untuk mengakses port-port Solace
+apiVersion: v1
+kind: Service
+metadata:
+  name: solace-service
+  namespace: solace
+spec:
+  type: NodePort
+  selector:
+    app: solace
+  ports:
+    - name: web
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 31444
+    - name: smf
+      protocol: TCP
+      port: 55555
+      targetPort: 55555
+      nodePort: 31443
+    - name: amqp
+      protocol: TCP
+      port: 5672
+      targetPort: 5672
+      nodePort: 31445
