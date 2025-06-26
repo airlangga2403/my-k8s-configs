@@ -1,6 +1,6 @@
-# solace/manifests.yaml
+# solace/manifests.yaml (Versi Final dengan perbaikan /dev/shm)
 
-# Secret untuk admin user
+# Secret untuk admin user (tetap sama)
 apiVersion: v1
 kind: Secret
 metadata:
@@ -9,7 +9,7 @@ metadata:
 stringData:
   username_admin_password: "PasswordSolace123"
 ---
-# StatefulSet untuk menjalankan broker Solace
+# StatefulSet untuk menjalankan broker Solace (dengan perbaikan)
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -26,9 +26,28 @@ spec:
       labels:
         app: solace
     spec:
+      initContainers:
+      - name: init-solace
+        image: busybox
+        command: ['sh', '-c', 'ulimit -n 2448 && ulimit -u 2048']
+        securityContext:
+          privileged: true
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      # --- PENAMBAHAN KUNCI: Mendefinisikan volume untuk /dev/shm ---
+      volumes:
+        # Mendefinisikan volume memory-backed bernama 'dshm'
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 2Gi # Memberikan 2Gi, lebih dari cukup dari 1Gi yang diminta
+      - name: solace-storage # Ini adalah volume persistent yang sudah ada
+        persistentVolumeClaim:
+          claimName: solace-storage # Pastikan ini cocok dengan nama PVC yang dibuat oleh volumeClaimTemplates
       containers:
       - name: solace
-        # Menggunakan image resmi dari Docker Hub
         image: solace/solace-pubsub-standard:latest
         env:
           - name: username_admin_password
@@ -38,32 +57,36 @@ spec:
                 key: username_admin_password
         resources:
           requests:
-            memory: "2Gi"
+            memory: "3Gi"
             cpu: "1000m"
           limits:
             memory: "4Gi"
             cpu: "1500m"
         ports:
-          - containerPort: 8080 # Web UI
+          - containerPort: 8080
             name: web
-          - containerPort: 55555 # SMF
+          - containerPort: 55555
             name: smf
-          - containerPort: 5672 # AMQP
+          - containerPort: 5672
             name: amqp
         volumeMounts:
-        - name: solace-storage
+        # --- PENAMBAHAN KUNCI: Memasang volume 'dshm' ke /dev/shm ---
+        - name: dshm
+          mountPath: /dev/shm
+        - name: solace-storage # Mount untuk data persistent
           mountPath: /usr/sw/var
-  # Volume Claim untuk message spool dan konfigurasi
+        securityContext:
+          privileged: true
   volumeClaimTemplates:
   - metadata:
-      name: solace-storage
+      name: solace-storage # PVC untuk data persistent
     spec:
       accessModes: [ "ReadWriteOnce" ]
       resources:
         requests:
           storage: 10Gi
 ---
-# Service untuk mengakses port-port Solace
+# Service (tetap sama)
 apiVersion: v1
 kind: Service
 metadata:
