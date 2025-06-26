@@ -1,5 +1,13 @@
+# ===================================================================
+# ANNOTATED SOLACE DEPLOYMENT FOR KUBERNETES
+#
+# This manifest is adapted from the standard 'docker run' command
+# to ensure all necessary configurations are included.
+# ===================================================================
+
 # =====================================
 # Namespace: solace
+# A dedicated namespace to logically isolate the Solace resources.
 # =====================================
 apiVersion: v1
 kind: Namespace
@@ -8,6 +16,8 @@ metadata:
 ---
 # =====================================
 # Secret: solace-secret
+# Stores sensitive data, like the admin password, separately from
+# the Pod definition for better security.
 # =====================================
 apiVersion: v1
 kind: Secret
@@ -15,10 +25,13 @@ metadata:
   name: solace-secret
   namespace: solace
 stringData:
-  username_admin_password: "PasswordSolace123"
+  # The password for the 'admin' user of the Solace broker.
+  username_admin_password: "admin" # Menggunakan password dari contoh docker run
 ---
 # =====================================
 # StatefulSet: solace-pubsub
+# Manages the Solace Pod. A StatefulSet is used because it provides
+# stable, unique network identifiers and stable, persistent storage.
 # =====================================
 apiVersion: apps/v1
 kind: StatefulSet
@@ -44,6 +57,9 @@ spec:
         - name: solace
           image: solace/solace-pubsub-standard:10.25.0
           env:
+            # --- PERBAIKAN: Menambahkan variabel lingkungan dari docker run ---
+            - name: username_admin_globalaccesslevel
+              value: "admin"
             - name: username_admin_password
               valueFrom:
                 secretKeyRef:
@@ -51,16 +67,8 @@ spec:
                   key: username_admin_password
             - name: SOLACE_LOG_TO_STDOUT
               value: "yes"
-            # --- PERBAIKAN DIMULAI DI SINI ---
-            # Secara eksplisit memberitahu Solace port eksternal (NodePort) yang digunakan.
-            # Nilai ini HARUS SAMA dengan nodePort yang ada di Service.
-            - name: service_web_port
-              value: "31444"
-            - name: service_smf_port
-              value: "31443"
-            - name: service_amqp_port
-              value: "31445"
-            # --- PERBAIKAN SELESAI ---
+            - name: SOLACE_CHECK_RSYSLOG
+              value: "no"
           resources:
             requests:
               memory: "2Gi"
@@ -69,12 +77,23 @@ spec:
               memory: "3Gi"
               cpu: "2500m"
           ports:
-            - containerPort: 8080
+            # --- PERBAIKAN: Menambahkan semua port dari docker run ---
+            - containerPort: 8080 # Web UI
               name: web
-            - containerPort: 55555
+            - containerPort: 55555 # SMF
               name: smf
-            - containerPort: 5672
+            - containerPort: 8008  # SEMP over TLS
+              name: semp-tls
+            - containerPort: 1883  # MQTT
+              name: mqtt
+            - containerPort: 8000  # MQTT over WS
+              name: mqtt-ws
+            - containerPort: 5672  # AMQP
               name: amqp
+            - containerPort: 9000  # MQTT Secure
+              name: mqtt-secure
+            - containerPort: 2222  # CLI Secure
+              name: cli-secure
           volumeMounts:
             - name: dshm
               mountPath: /dev/shm
@@ -83,21 +102,24 @@ spec:
           securityContext:
             privileged: true
       volumes:
+        # --- PERBAIKAN: Menyesuaikan ukuran SHM dengan docker run (--shm-size=2g) ---
         - name: dshm
           emptyDir:
             medium: Memory
-            sizeLimit: 1Gi
+            sizeLimit: 2Gi
   volumeClaimTemplates:
     - metadata:
         name: solace-storage
       spec:
         accessModes: [ "ReadWriteOnce" ]
+        storageClassName: local-path
         resources:
           requests:
             storage: 10Gi
 ---
 # =====================================
 # Service: solace-service (NodePort)
+# Exposes the Solace Pod to the network.
 # =====================================
 apiVersion: v1
 kind: Service
@@ -109,6 +131,7 @@ spec:
   selector:
     app: solace
   ports:
+    # --- PERBAIKAN: Menambahkan semua port dari docker run ---
     - name: web
       protocol: TCP
       port: 8080
@@ -124,3 +147,28 @@ spec:
       port: 5672
       targetPort: 5672
       nodePort: 31445
+    - name: semp-tls
+      protocol: TCP
+      port: 8008
+      targetPort: 8008
+      nodePort: 31446
+    - name: mqtt
+      protocol: TCP
+      port: 1883
+      targetPort: 1883
+      nodePort: 31447
+    - name: mqtt-ws
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+      nodePort: 31448
+    - name: mqtt-secure
+      protocol: TCP
+      port: 9000
+      targetPort: 9000
+      nodePort: 31449
+    - name: cli-secure
+      protocol: TCP
+      port: 2222
+      targetPort: 2222
+      nodePort: 31450
