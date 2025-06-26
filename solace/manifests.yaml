@@ -35,7 +35,10 @@ spec:
         fsGroup: 1000
       containers:
         - name: solace
-          image: solace/solace-standard
+          # Corrected image name: solace/solace-pubsub-standard is the generally used image.
+          # If 'latest' still causes issues, try a specific version tag like '10.6.1.28'.
+          # For private registries or rate limits, you might need imagePullSecrets.
+          image: solace/solace-pubsub-standard:latest 
           env:
             - name: username_admin_globalaccesslevel
               value: "admin"
