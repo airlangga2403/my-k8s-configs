@@ -55,7 +55,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: solace
-          image: solace/solace-pubsub-standard:10.25.0
+          image: solace/solace-pubsub-standard
           env:
             # --- PERBAIKAN: Menambahkan variabel lingkungan dari docker run ---
             - name: username_admin_globalaccesslevel
