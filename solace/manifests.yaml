@@ -1,6 +1,14 @@
-# solace/manifests.yaml (Versi dengan penyesuaian resource & Service NodePort)
-
-# Secret untuk admin user (tetap sama)
+# =====================================
+# Namespace (Opsional, kalau belum ada)
+# =====================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: solace
+---
+# =====================================
+# Secret untuk admin
+# =====================================
 apiVersion: v1
 kind: Secret
 metadata:
@@ -9,7 +17,24 @@ metadata:
 stringData:
   username_admin_password: "PasswordSolace123"
 ---
-# StatefulSet untuk menjalankan broker Solace (dengan resource yang lebih rendah)
+# =====================================
+# PVC untuk persistent storage
+# =====================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: solace-storage
+  namespace: solace
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+# =====================================
+# StatefulSet Solace
+# =====================================
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -26,88 +51,79 @@ spec:
       labels:
         app: solace
     spec:
-      initContainers:
-      - name: init-solace
-        image: busybox
-        command: ['sh', '-c', 'ulimit -n 2448 && ulimit -u 2048']
-        securityContext:
-          privileged: true
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      volumes:
-      - name: dshm
-        emptyDir:
-          medium: Memory
-          sizeLimit: 1Gi
-      - name: solace-storage
-        persistentVolumeClaim:
-          claimName: solace-storage
       containers:
-      - name: solace
-        image: solace/solace-pubsub-standard:latest
-        env:
-          - name: username_admin_password
-            valueFrom:
-              secretKeyRef:
-                name: solace-secret
-                key: username_admin_password
-          - name: SOLACE_LOG_TO_STDOUT
-            value: "yes"
+        - name: solace
+          image: solace/solace-pubsub-standard:10.25.0
+          env:
+            - name: username_admin_password
+              valueFrom:
+                secretKeyRef:
+                  name: solace-secret
+                  key: username_admin_password
+            - name: SOLACE_LOG_TO_STDOUT
+              value: "yes"
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1500m"
+            limits:
+              memory: "3Gi"
+              cpu: "2500m"
+          ports:
+            - containerPort: 8080
+              name: web
+            - containerPort: 55555
+              name: smf
+            - containerPort: 5672
+              name: amqp
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+            - name: solace-storage
+              mountPath: /usr/sw/var
+          securityContext:
+            privileged: true
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: solace-storage
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
         resources:
           requests:
-            memory: "1Gi"
-            cpu: "500m"
-          limits:
-            memory: "2Gi"
-            cpu: "1000m"
-        ports:
-          - containerPort: 8080
-            name: web
-          - containerPort: 55555
-            name: smf
-          - containerPort: 5672
-            name: amqp
-        volumeMounts:
-        - name: dshm
-          mountPath: /dev/shm
-        - name: solace-storage
-          mountPath: /usr/sw/var
-        securityContext:
-          privileged: true
-  volumeClaimTemplates:
-  - metadata:
-      name: solace-storage
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      resources:
-        requests:
-          storage: 10Gi
+            storage: 10Gi
 ---
-# --- PENAMBAHAN: Service untuk mengekspos Solace ke publik via NodePort ---
+# =====================================
+# NodePort Service untuk expose Solace
+# =====================================
 apiVersion: v1
 kind: Service
 metadata:
   name: solace-service
   namespace: solace
 spec:
-  # Tipe NodePort akan membuat port dapat diakses melalui IP node K8s Anda
   type: NodePort
   selector:
-    # Selector ini harus cocok dengan label pada template pod di StatefulSet
     app: solace
   ports:
     - name: web
       protocol: TCP
-      port: 8080         # Port internal di dalam cluster
-      targetPort: 8080   # Port di dalam container
-      nodePort: 31444    # Port publik yang dapat diakses dari luar (IP_NODE:31444)
+      port: 8080
+      targetPort: 8080
+      nodePort: 31444
     - name: smf
       protocol: TCP
       port: 55555
       targetPort: 55555
-      nodePort: 31443    # Port ini yang akan digunakan oleh aplikasi Spring Boot Anda
+      nodePort: 31443
     - name: amqp
       protocol: TCP
       port: 5672
