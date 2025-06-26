@@ -135,7 +135,6 @@ spec:
       labels:
         app: kafka
     spec:
-      # PERBAIKAN: Menambahkan initContainer untuk mengekstrak broker id
       initContainers:
       - name: get-broker-id
         image: busybox:1.28
@@ -146,6 +145,15 @@ spec:
       containers:
       - name: kafka
         image: confluentinc/cp-kafka:7.0.1
+        # --- PERBAIKAN UTAMA ADA DI SINI ---
+        # Menggunakan shell untuk membangun env var sebelum menjalankan Kafka
+        command:
+          - "/bin/bash"
+          - "-c"
+        args:
+          - |
+            export KAFKA_ADVERTISED_LISTENERS="INTERNAL://kafka-0.kafka-svc-internal.kafka.svc.cluster.local:9092,EXTERNAL://${KAFKA_ADVERTISED_HOST_NAME}:32094"
+            exec /etc/confluent/docker/run
         ports:
         - name: internal
           containerPort: 9092
@@ -160,16 +168,11 @@ spec:
           value: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
         - name: KAFKA_INTER_BROKER_LISTENER_NAME
           value: "INTERNAL"
-        # --- PERBAIKAN UTAMA ADA DI SINI ---
-        # Mengiklankan NodePort (32094) untuk listener eksternal, bukan port internal (9094)
-        - name: KAFKA_ADVERTISED_LISTENERS
-          value: "INTERNAL://kafka-0.kafka-svc-internal.kafka.svc.cluster.local:9092,EXTERNAL://$(KAFKA_ADVERTISED_HOST_NAME):32094"
         # Ambil nama host (IP node) dari Downward API. Ini penting untuk NodePort.
         - name: KAFKA_ADVERTISED_HOST_NAME
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
-        # --- PERBAIKAN LAINNYA ---
         # Broker ID tidak lagi di-hardcode, dibaca dari file yang dibuat oleh initContainer
         - name: KAFKA_BROKER_ID_COMMAND
           value: "cat /var/lib/kafka/data/broker.id"
