@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   # Nama aplikasi baru di Argo CD untuk Kafka
-  name: kafka-cluster
+  name: kafka
   namespace: argocd
 spec:
   project: default

@@ -1,39 +1,64 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: kafka
+  name: test
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: kafka-nodeport
-  namespace: kafka
+  name: kafka-internal
+  namespace: test
+  labels:
+    app: kafka-test
+    unit: kafka
+spec:
+  type: ClusterIP
+  selector:
+    app: kafka-test
+    unit: kafka
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: 9092
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-external
+  namespace: test
+  labels:
+    app: kafka-test
+    unit: kafka
 spec:
   type: NodePort
   selector:
-    app: kafka
+    app: kafka-test
+    unit: kafka
   ports:
     - name: kafka
-      protocol: TCP
       port: 9092
       targetPort: 9092
+      protocol: TCP
       nodePort: 30992
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: kafka
-  namespace: kafka
+  namespace: test
 spec:
-  serviceName: "kafka"
+  serviceName: "kafka-internal"
   replicas: 1
   selector:
     matchLabels:
-      app: kafka
+      app: kafka-test
+      unit: kafka
   template:
     metadata:
       labels:
-        app: kafka
+        app: kafka-test
+        unit: kafka
     spec:
       containers:
         - name: kafka
@@ -52,7 +77,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: zookeeper
-  namespace: kafka
+  namespace: test
 spec:
   ports:
     - port: 2181
@@ -66,7 +91,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: zookeeper
-  namespace: kafka
+  namespace: test
 spec:
   replicas: 1
   selector:
