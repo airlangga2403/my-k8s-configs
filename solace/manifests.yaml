@@ -203,11 +203,12 @@ spec:
       port: 5672
       targetPort: 5672
       nodePort: 31672
+    # Adjusted NodePort values to be within the valid range (30000-32767)
     - name: semp-tls
       protocol: TCP
       port: 8008
       targetPort: 8008
-      nodePort: 38008
+      nodePort: 30008 # Adjusted from 38008
     - name: mqtt
       protocol: TCP
       port: 1883
@@ -217,12 +218,12 @@ spec:
       protocol: TCP
       port: 8000
       targetPort: 8000
-      nodePort: 38000 # MQTT WebSocket
+      nodePort: 30000 # Adjusted from 38000 (first available in range)
     - name: mqtt-secure
       protocol: TCP
       port: 8883
       targetPort: 8883
-      nodePort: 38883 # MQTT TLS
+      nodePort: 30001 # Adjusted from 38883 (next available in range)
     - name: cli-secure
       protocol: TCP
       port: 2222
