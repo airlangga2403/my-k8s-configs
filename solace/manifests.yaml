@@ -233,4 +233,4 @@ spec:
       protocol: TCP
       port: 55443
       targetPort: 55443
-      nodePort: 35443
+      nodePort: 30543 # Adjusted from 35443
