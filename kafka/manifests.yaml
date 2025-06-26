@@ -1,114 +1,212 @@
+# 1. Namespace untuk mengisolasi Kafka dan Zookeeper
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: test
-
+  name: kafka
 ---
+# --- Konfigurasi Zookeeper (Dependensi Kafka) ---
+
+# 2. Service untuk Zookeeper
 apiVersion: v1
 kind: Service
 metadata:
-  name: kafka-internal
-  namespace: test
+  name: zookeeper-svc
+  namespace: kafka
   labels:
-    app: kafka-test
-    unit: kafka
+    app: zookeeper
 spec:
-  type: ClusterIP
-  selector:
-    app: kafka-test
-    unit: kafka
   ports:
-    - name: internal
-      port: 9092
-      targetPort: 9092
-    - name: controller
-      port: 9093
-      targetPort: 9093
+  - name: client
+    port: 2181
+    protocol: TCP
+  clusterIP: None # Headless service untuk StatefulSet
+  selector:
+    app: zookeeper
+---
+# 3. StatefulSet untuk Zookeeper
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: zookeeper
+  namespace: kafka
+spec:
+  serviceName: "zookeeper-svc" # Ini adalah nama service yang terkait dengan StatefulSet ini
+  # Menggunakan 1 replika untuk menghemat sumber daya
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zookeeper
+  template: # Ini adalah template untuk pod yang akan dibuat oleh StatefulSet
+    metadata:
+      labels:
+        app: zookeeper
+    spec:
+      containers:
+      - name: zookeeper
+        image: confluentinc/cp-zookeeper:7.0.1
+        ports:
+        - containerPort: 2181
+        env:
+        - name: ZOOKEEPER_CLIENT_PORT
+          value: "2181"
+        - name: ZOOKEEPER_TICK_TIME
+          value: "2000"
+        # Menentukan permintaan dan batas sumber daya yang rendah
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+        volumeMounts:
+        - name: zookeeper-data
+          mountPath: /var/lib/zookeeper/data
+        - name: zookeeper-log
+          mountPath: /var/lib/zookeeper/log
+  volumeClaimTemplates:
+  - metadata:
+      name: zookeeper-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 2Gi # Ukuran penyimpanan kecil
+  - metadata:
+      name: zookeeper-log
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+---
+# --- Konfigurasi Kafka Broker ---
 
 ---
+# 4. Service Internal (Headless) untuk Kafka Broker
+# Ini digunakan untuk komunikasi internal antar-broker dan akses dari dalam cluster Kubernetes.
+# `clusterIP: None` membuat ini menjadi Headless Service, memungkinkan DNS langsung ke pod.
 apiVersion: v1
 kind: Service
 metadata:
-  name: kafka-external
-  namespace: test
+  name: kafka-svc-internal
+  namespace: kafka
   labels:
-    app: kafka-test
-    unit: kafka
+    app: kafka
 spec:
-  type: NodePort
-  selector:
-    app: kafka-test
-    unit: kafka
   ports:
-    - name: external
-      port: 30992
-      targetPort: 9094
-      nodePort: 30992
-
+  - name: broker # Nama port untuk listener internal
+    port: 9092 # Port internal Kafka di dalam cluster
+    protocol: TCP
+  clusterIP: None # Headless service untuk StatefulSet (penting untuk internal DNS)
+  selector:
+    app: kafka # Akan memilih pod Kafka dengan label ini
 ---
+# 5. Service Eksternal dengan NodePort untuk Kafka
+# Service ini yang akan memungkinkan akses dari luar jaringan Kubernetes.
+# `type: NodePort` akan membuka port di setiap node Kubernetes.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-svc-external
+  namespace: kafka
+spec:
+  type: NodePort # Jenis Service: NodePort untuk eksposur eksternal
+  selector:
+    app: kafka # Akan memilih pod Kafka dengan label ini
+  ports:
+  - name: kafka-external # Nama port untuk listener eksternal
+    protocol: TCP
+    port: 9094 # Port yang akan dibuka di dalam cluster untuk Service ini
+    targetPort: 9094 # Port di dalam container Kafka yang akan di-mapping
+    nodePort: 32094 # Port di Node Kubernetes yang akan terbuka (harus >30000 dan bebas)
+                    # Klien eksternal akan terhubung ke <Node_IP>:32094
+---
+# 6. StatefulSet untuk Kafka Broker
+# Ini mendefinisikan bagaimana pod Kafka dijalankan, termasuk konfigurasi listener.
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: kafka
-  namespace: test
+  namespace: kafka
 spec:
-  serviceName: "kafka-internal"
-  replicas: 1
+  serviceName: "kafka-svc-internal" # Ini adalah nama service yang terkait dengan StatefulSet ini
+  replicas: 1 # Menggunakan 1 replika untuk kesederhanaan. Untuk produksi, tingkatkan.
   selector:
     matchLabels:
-      app: kafka-test
-      unit: kafka
-  template:
+      app: kafka
+  template: # Ini adalah template untuk pod yang akan dibuat oleh StatefulSet
     metadata:
       labels:
-        app: kafka-test
-        unit: kafka
+        app: kafka
     spec:
+      initContainers:
+      # Init container untuk mendapatkan broker ID dari nama hostname pod (kafka-0 -> ID 0)
+      - name: get-broker-id
+        image: busybox:1.28
+        command: ['/bin/sh', '-c', "export BROKER_ID=$(hostname | awk -F'-' '{print $2}') && echo \"broker id is $BROKER_ID\" > /var/lib/kafka/data/broker.id"]
+        volumeMounts:
+        - name: kafka-data
+          mountPath: /var/lib/kafka/data
       containers:
-        - name: kafka
-          image: bitnami/kafka:latest
-          ports:
-            - containerPort: 9092
-              name: internal
-            - containerPort: 9093
-              name: controller
-            - containerPort: 9094
-              name: external
-          env:
-            # KRaft mode configuration
-            - name: KAFKA_ENABLE_KRAFT
-              value: "yes"
-            - name: KAFKA_CFG_PROCESS_ROLES
-              value: "controller,broker"
-            - name: KAFKA_CFG_NODE_ID
-              value: "1"
-            - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
-              value: "1@kafka-0.kafka-internal.test:9093"
-            
-            # Listener configuration
-            - name: KAFKA_CFG_LISTENERS
-              value: "INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:9094"
-            - name: KAFKA_CFG_ADVERTISED_LISTENERS
-              value: "INTERNAL://kafka-0.kafka-internal.test:9092,EXTERNAL://43.157.209.107:30992"
-            - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
-              value: "CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
-            - name: KAFKA_CFG_INTER_BROKER_LISTENER_NAME
-              value: "INTERNAL"
-            
-            # Other Kafka settings
-            - name: KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE
-              value: "true"
-            - name: KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR
-              value: "1"
-            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
-              value: "1"
-            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR
-              value: "1"
-            
-            # Resource settings (adjust according to your needs)
-            - name: KAFKA_HEAP_OPTS
-              value: "-Xmx1G -Xms1G"
-            - name: KAFKA_CFG_LOG_FLUSH_INTERVAL_MESSAGES
-              value: "10000"
-            - name: KAFKA_CFG_LOG_RETENTION_HOURS
-              value: "72"
+      - name: kafka
+        image: confluentinc/cp-kafka:7.0.1 # Menggunakan image Kafka dari Confluent
+        # --- PERBAIKAN UTAMA / KONFIGURASI PENTING UNTUK EKSTERNAL ---
+        # Menggunakan bash untuk membangun environment variable sebelum menjalankan Kafka
+        command:
+          - "/bin/bash"
+          - "-c"
+        args:
+          - |
+            # KAFKA_ADVERTISED_LISTENERS ini sangat penting!
+            # INTERNAL: Listener untuk komunikasi dalam cluster (menggunakan FQDN headless service)
+            # EXTERNAL: Listener untuk komunikasi luar cluster (menggunakan IP Node dan NodePort)
+            export KAFKA_ADVERTISED_LISTENERS="INTERNAL://kafka-0.kafka-svc-internal.kafka.svc.cluster.local:9092,EXTERNAL://${KAFKA_ADVERTISED_HOST_NAME}:32094"
+            # Jalankan perintah utama Kafka
+            exec /etc/confluent/docker/run
+        ports:
+        - name: internal # Port untuk listener internal Kafka
+          containerPort: 9092
+        - name: external # Port untuk listener eksternal Kafka
+          containerPort: 9094 # Ini harus sama dengan targetPort di kafka-svc-external
+        env:
+        # Konfigurasi koneksi ke Zookeeper
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          value: "zookeeper-svc:2181" # Sesuaikan dengan nama service Zookeeper Anda
+        # Mengatur pemetaan protokol keamanan untuk setiap listener
+        - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+          value: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
+        # Menentukan listener yang digunakan untuk komunikasi antar-broker
+        - name: KAFKA_INTER_BROKER_LISTENER_NAME
+          value: "INTERNAL"
+        # Mengambil IP host (Node Kubernetes) tempat pod ini berjalan.
+        # Ini akan digunakan untuk mengiklankan listener eksternal.
+        - name: KAFKA_ADVERTISED_HOST_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP # Dapatkan IP Node dari Downward API
+        # Broker ID dibaca dari file yang dibuat oleh initContainer
+        - name: KAFKA_BROKER_ID_COMMAND
+          value: "cat /var/lib/kafka/data/broker.id"
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1" # Untuk 1 replika, ini harus 1
+        - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+          value: "0"
+        resources: # Menentukan permintaan dan batas sumber daya untuk pod Kafka
+          requests:
+            cpu: "500m"
+            memory: "1.5Gi"
+          limits:
+            cpu: "1"
+            memory: "2.5Gi"
+        volumeMounts:
+        - name: kafka-data
+          mountPath: /var/lib/kafka/data
+  volumeClaimTemplates: # Untuk persistent storage data Kafka
+  - metadata:
+      name: kafka-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ] # Hanya bisa di-mount oleh satu pod dalam mode read-write
+      resources:
+        requests:
+          storage: 5Gi # Ukuran penyimpanan untuk data Kafka
