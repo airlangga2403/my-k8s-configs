@@ -19,7 +19,8 @@ metadata:
   name: solace
   namespace: solace
 spec:
-  serviceName: "solace-service"
+  # The serviceName here should point to the headless service for internal cluster communication.
+  serviceName: "solace-internal"
   replicas: 1
   selector:
     matchLabels:
@@ -52,6 +53,7 @@ spec:
               value: "message_routing"
             - name: routername
               value: "myroutername"
+            # Solace default ports as environment variables
             - name: service_ssh_port
               value: "2222"
             - name: service_webtransport_port
@@ -78,6 +80,7 @@ spec:
               memory: "3Gi"
               cpu: "2500m"
           ports:
+            # Expose all necessary Solace ports
             - containerPort: 8080
               name: web
             - containerPort: 55555
@@ -102,7 +105,9 @@ spec:
             - name: solace-storage
               mountPath: /usr/sw/var
           securityContext:
-            privileged: true
+            # Note: privileged mode might be required for some Solace deployments
+            # Consider more granular capabilities if possible for production.
+            privileged: true 
       volumes:
         - name: dshm
           emptyDir:
@@ -113,7 +118,7 @@ spec:
         name: solace-storage
       spec:
         accessModes: [ "ReadWriteOnce" ]
-        storageClassName: local-path
+        storageClassName: local-path # Ensure this StorageClass exists in your cluster
         resources:
           requests:
             storage: 10Gi
@@ -122,10 +127,64 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: solace-service
+  name: solace-internal
   namespace: solace
+  labels:
+    app: solace
+    type: internal
 spec:
-  type: NodePort
+  type: ClusterIP # Internal communication within the cluster
+  selector:
+    app: solace
+  ports:
+    - name: web-internal
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+    - name: smf-internal
+      protocol: TCP
+      port: 55555
+      targetPort: 55555
+    - name: amqp-internal
+      protocol: TCP
+      port: 5672
+      targetPort: 5672
+    - name: semp-tls-internal
+      protocol: TCP
+      port: 8008
+      targetPort: 8008
+    - name: mqtt-internal
+      protocol: TCP
+      port: 1883
+      targetPort: 1883
+    - name: mqtt-ws-internal
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+    - name: mqtt-secure-internal
+      protocol: TCP
+      port: 8883
+      targetPort: 8883
+    - name: cli-secure-internal
+      protocol: TCP
+      port: 2222
+      targetPort: 2222
+    - name: smf-tls-internal
+      protocol: TCP
+      port: 55443
+      targetPort: 55443
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: solace-external
+  namespace: solace
+  labels:
+    app: solace
+    type: external
+spec:
+  type: NodePort # External access via NodePort
   selector:
     app: solace
   ports:
@@ -133,7 +192,7 @@ spec:
       protocol: TCP
       port: 8080
       targetPort: 8080
-      nodePort: 30080   # WebUI (http://IP:30080)
+      nodePort: 30080 # WebUI (http://<NodeIP>:30080)
     - name: smf
       protocol: TCP
       port: 55555
@@ -153,17 +212,17 @@ spec:
       protocol: TCP
       port: 1883
       targetPort: 1883
-      nodePort: 31883   # MQTT TCP
+      nodePort: 31883 # MQTT TCP
     - name: mqtt-ws
       protocol: TCP
       port: 8000
       targetPort: 8000
-      nodePort: 38000   # MQTT WebSocket
+      nodePort: 38000 # MQTT WebSocket
     - name: mqtt-secure
       protocol: TCP
       port: 8883
       targetPort: 8883
-      nodePort: 38883   # MQTT TLS
+      nodePort: 38883 # MQTT TLS
     - name: cli-secure
       protocol: TCP
       port: 2222
