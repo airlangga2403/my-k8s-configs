@@ -1,5 +1,7 @@
 # kafdrop-manifests.yaml
+
 # Manifes Kubernetes untuk Kafdrop
+
 # Simpan file ini di path yang ditentukan di atas (misal: 'kafdrop/kafdrop-manifests.yaml' di repo Anda)
 
 # 1. Namespace untuk mengisolasi Kafdrop
@@ -26,7 +28,7 @@ spec:
       port: 9000 # Port internal service dan port default Kafdrop
       targetPort: 9000 # Port container yang diekspos
       nodePort: 30090 # Port NodePort yang akan dibuka di setiap node
-                       # Pastikan port ini tidak bentrok dengan service lain
+                         # Pastikan port ini tidak bentrok dengan service lain
 ---
 # 3. Deployment untuk Kafdrop
 apiVersion: apps/v1
@@ -52,10 +54,10 @@ spec:
         ports:
         - containerPort: 9000 # Port default Kafdrop UI
         env:
-        # PENTING: Ganti 'your-kafka-broker:9092' dengan alamat broker Kafka Anda
-        # Jika Kafka Anda di dalam cluster Kubernetes, gunakan nama service Kafka Anda (misal: 'my-kafka-svc:9092')
+        # PENTING: Menggunakan nama service internal Kafka Anda (kafka-internal)
+        # di namespace 'test' dan port 9092
         - name: KAFKA_BROKERCONNECT
-          value: "your-kafka-broker:9092"
+          value: "kafka-internal.test:9092" # Diperbaiki di sini!
         # Opsional: Jika Anda ingin memantau beberapa cluster Kafka
         # - name: KAFKA_BROKERCONNECT_2
         #   value: "another-kafka-broker:9092"
