@@ -1,0 +1,109 @@
+# 1. Namespace untuk mengisolasi SonarQube
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sonarqube
+---
+# 2. Persistent Volume Claims (PVCs) untuk data dan ekstensi SonarQube
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarqube-data-pvc
+  namespace: sonarqube
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarqube-extensions-pvc
+  namespace: sonarqube
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+# 3. Service untuk SonarQube dengan tipe NodePort
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarqube-svc
+  namespace: sonarqube
+spec:
+  type: NodePort
+  selector:
+    app: sonarqube
+  ports:
+    - name: sonarqube-ui
+      protocol: TCP
+      port: 9000
+      targetPort: 9000
+      # Anda bisa mengakses UI SonarQube melalui port ini
+      nodePort: 30099
+---
+# 4. Deployment untuk SonarQube yang terhubung ke PostgreSQL
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarqube-deployment
+  namespace: sonarqube
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sonarqube
+  template:
+    metadata:
+      labels:
+        app: sonarqube
+    spec:
+      # PENTING: initContainer untuk mengatur properti kernel
+      initContainers:
+      - name: sysctl-init
+        image: busybox
+        command: ["sysctl", "-w", "vm.max_map_count=262144"]
+        securityContext:
+          privileged: true
+      containers:
+      - name: sonarqube
+        image: sonarqube:lts-community
+        ports:
+        - containerPort: 9000
+        # --- Konfigurasi Koneksi ke PostgreSQL yang Ada ---
+        env:
+        # URL JDBC menunjuk ke service PostgreSQL 'postgres-service' di namespace 'postgres-ha'
+        # dan ke database bernama 'sonar'
+        - name: SONAR_JDBC_URL
+          value: "jdbc:postgresql://postgres-service.postgres-ha:5432/sonar"
+        # Mengambil username 'pguser' dari secret 'postgres-secret' di namespace 'postgres-ha'
+        - name: SONAR_JDBC_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              namespace: postgres-ha
+              key: POSTGRES_USER
+        # Mengambil password 'pgpass' dari secret 'postgres-secret' di namespace 'postgres-ha'
+        - name: SONAR_JDBC_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              namespace: postgres-ha
+              key: POSTGRES_PASSWORD
+        volumeMounts:
+        - name: sonarqube-data
+          mountPath: /opt/sonarqube/data
+        - name: sonarqube-extensions
+          mountPath: /opt/sonarqube/extensions
+      volumes:
+      - name: sonarqube-data
+        persistentVolumeClaim:
+          claimName: sonarqube-data-pvc
+      - name: sonarqube-extensions
+        persistentVolumeClaim:
+          claimName: sonarqube-extensions-pvc

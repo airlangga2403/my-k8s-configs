@@ -2,20 +2,20 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   # Nama aplikasi baru di Argo CD
-  name: minio-new
+  name: sonarqube
   namespace: argocd
 spec:
   project: default
   source:
-    # Ganti dengan URL repo Git Anda
+    # Ganti dengan URL repo Git Anda jika berbeda
     repoURL: 'https://github.com/airlangga2403/my-k8s-configs.git' 
-    # Path ke folder baru tempat Anda menyimpan manifes
-    path: minio
+    # Path ke folder tempat Anda menyimpan manifes SonarQube
+    path: sonarqube # Asumsikan Anda menyimpan manifes di atas di folder ini
     targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
-    # Namespace bisa tetap sama, karena nama resource di dalamnya sudah unik
-    namespace: minio 
+    # Namespace tujuan, sesuai dengan yang ada di manifes
+    namespace: sonarqube 
   syncPolicy:
     automated:
       prune: true
