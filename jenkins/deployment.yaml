@@ -30,7 +30,7 @@ spec:
             memory: "512Mi" # Minta 1GB RAM di awal
             cpu: "500m"   # Minta 0.5 core CPU
           limits:
-            memory: "1.5Gi" # Batasi maksimal 3GB RAM agar tidak mengganggu service lain
+            memory: "2Gi" # Batasi maksimal 3GB RAM agar tidak mengganggu service lain
             cpu: "1500m"  # Batasi maksimal 1.5 core CPU
         volumeMounts:
         - name: jenkins-home
