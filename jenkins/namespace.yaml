@@ -1,0 +1,6 @@
+# jenkins/namespace.yaml
+# Mendefinisikan namespace terpisah untuk Jenkins
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jenkins

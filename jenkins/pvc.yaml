@@ -1,0 +1,13 @@
+# jenkins/pvc.yaml
+# Membuat penyimpanan persisten untuk data konfigurasi Jenkins (JENKINS_HOME)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-pvc
+  namespace: jenkins
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi # Alokasi 10GB untuk data Jenkins, bisa disesuaikan

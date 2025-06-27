@@ -1,0 +1,41 @@
+# jenkins/deployment.yaml
+# Mendefinisikan deployment untuk Jenkins Controller
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-deployment
+  namespace: jenkins
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      serviceAccountName: jenkins-sa # Menggunakan Service Account yang sudah dibuat
+      containers:
+      - name: jenkins
+        image: jenkins/jenkins:lts-jdk17 # Menggunakan image LTS (Long-Term Support)
+        ports:
+        - containerPort: 8080
+          name: web
+        - containerPort: 50000
+          name: agent
+        # === Penyesuaian Resource untuk Server 2C/8GB RAM ===
+        resources:
+          requests:
+            memory: "1Gi" # Minta 1GB RAM di awal
+            cpu: "500m"   # Minta 0.5 core CPU
+          limits:
+            memory: "2Gi" # Batasi maksimal 3GB RAM agar tidak mengganggu service lain
+            cpu: "1500m"  # Batasi maksimal 1.5 core CPU
+        volumeMounts:
+        - name: jenkins-home
+          mountPath: /var/jenkins_home
+      volumes:
+      - name: jenkins-home
+        persistentVolumeClaim:
+          claimName: jenkins-pvc
