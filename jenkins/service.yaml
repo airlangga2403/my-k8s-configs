@@ -12,9 +12,9 @@ spec:
   ports:
   - port: 8080
     targetPort: 8080
-    nodePort: 32000 # Akses UI Jenkins melalui http://<IP-NODE>:32000
+    nodePort: 32005 # Akses UI Jenkins melalui http://<IP-NODE>:32000
     name: web
   - port: 50000
     targetPort: 50000
-    nodePort: 32001 # Port untuk komunikasi dengan build agent
+    nodePort: 32006 # Port untuk komunikasi dengan build agent
     name: agent
