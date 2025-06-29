@@ -23,10 +23,10 @@ spec:
       
       containers:
       - name: app
-        # --- LOKASI YANG BENAR UNTUK image ---
-        # 'image' adalah properti dari container, bukan dari imagePullSecrets.
-        # PENTING: Jenkins akan mengganti baris ini secara otomatis
-        image: airlangga2403/kai-test-kafka:initial
+        # --- PERBAIKAN DI SINI ---
+        # Username diubah menjadi username Docker Hub Anda yang benar (airlangga22).
+        # Jenkins akan mengganti tag ':initial' secara otomatis.
+        image: airlangga22/kai-test-kafka:initial
         imagePullPolicy: Always # Disarankan untuk selalu pull image terbaru dari registry
         ports:
         - containerPort: 8080
