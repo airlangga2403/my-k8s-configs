@@ -18,7 +18,7 @@ spec:
       - name: dockerhub-creds
       containers:
       - name: app
-        image: airlangga22/kai-test-kafka:initial # Ini akan diganti oleh Jenkins
+        image: airlangga22/kai-test-kafka:e3233f6
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
