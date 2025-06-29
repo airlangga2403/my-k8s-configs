@@ -3,22 +3,26 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: kai-test-kafka-config
-  namespace: kai-test-kafka # Disarankan untuk mendefinisikan namespace secara eksplisit
+  namespace: kai-test-kafka
 data:
-  # Nama kunci harus 'application.yml' agar dibaca oleh Spring Boot
   application.yml: |
-    # Topic kustom Anda
+    # ==================== PERBAIKAN DI SINI ====================
+    # Menambahkan context-path agar aplikasi berjalan di /kai-test-kafka
+    server:
+      servlet:
+        context-path: /kai-test-kafka
+      port: 8080
+    # =========================================================
+
     kafka:
       topic:
         presensi-log: presensi-log
 
-    # Konfigurasi utama Spring Boot
     spring:
       application:
         name: kai-test-kafka
       profiles:
         active: development
-      # Konfigurasi Kafka
       kafka:
         bootstrap-servers: 43.157.209.107:30992
         consumer:
@@ -27,7 +31,6 @@ data:
           enable-auto-commit: false
           key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
           value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-          # Properti fetch
           fetch-max-wait-ms: 5000
           fetch-min-bytes: 1
           max-poll-records: 500
@@ -35,9 +38,7 @@ data:
           type: batch
           ack-mode: MANUAL_IMMEDIATE
       
-      # Konfigurasi Database (JPA & Datasource)
       datasource:
-        # Konfigurasi untuk datasource master
         rolink-master:
           url: jdbc:postgresql://43.157.209.107:31001/mydb?currentSchema=starlink
           username: pguser
@@ -52,7 +53,6 @@ data:
             idle-timeout: 30000
             max-lifetime: 1800000
             connection-timeout: 30000
-        # Konfigurasi untuk datasource slave
         rolink-slave:
           url: jdbc:postgresql://43.157.209.107:31001/mydb?currentSchema=starlink
           username: pguser
@@ -71,7 +71,6 @@ data:
       jpa:
         database-platform: org.hibernate.dialect.PostgreSQLDialect
         hibernate:
-          # ddl-auto: validate # Sebaiknya tidak diaktifkan di production
           naming:
             physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
         properties:
@@ -81,9 +80,3 @@ data:
             order_inserts: true
             order_updates: true
             batch_versioned_data: true
-        # show-sql: true
-
-    # Konfigurasi Server
-    server:
-      port: 8080
-

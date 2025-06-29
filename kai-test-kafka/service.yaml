@@ -3,12 +3,18 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kai-test-kafka-service
+  namespace: kai-test-kafka
 spec:
+  # Tipe NodePort akan mengekspos service di port statis pada setiap IP Node.
   type: NodePort
   selector:
+    # Selector ini harus cocok dengan label di Deployment Anda.
     app: kai-test-kafka
   ports:
+    # Port ini adalah port internal Service di dalam cluster.
   - port: 8080
+    # Port ini adalah port di dalam container/pod aplikasi Anda.
     targetPort: 8080
-    # Ganti port ini sesuai kebutuhan untuk setiap aplikasi
+    # Ini adalah port yang akan Anda akses dari luar (IP_NODE:PORT).
     nodePort: 30820
+    name: http
