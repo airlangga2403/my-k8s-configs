@@ -19,19 +19,27 @@ spec:
       containers:
       - name: jenkins
         image: jenkins/jenkins:lts-jdk17 # Menggunakan image LTS (Long-Term Support)
+        
+        # ==================== PERBAIKAN DI SINI ====================
+        # Menambahkan environment variable untuk mengaktifkan WebSocket.
+        # Ini akan membuat opsi WebSocket muncul di halaman Security.
+        env:
+        - name: JAVA_OPTS
+          value: "-Dorg.jenkinsci.plugins.workflow.cps.CpsVmExecutorService.USE_WEB_SOCKET=true"
+        # =========================================================
+
         ports:
         - containerPort: 8080
           name: web
         - containerPort: 50000
           name: agent
-        # === Penyesuaian Resource untuk Server 2C/8GB RAM ===
         resources:
           requests:
-            memory: "512Mi" # Minta 1GB RAM di awal
-            cpu: "500m"   # Minta 0.5 core CPU
+            memory: "512Mi"
+            cpu: "500m"
           limits:
-            memory: "2Gi" # Batasi maksimal 3GB RAM agar tidak mengganggu service lain
-            cpu: "1500m"  # Batasi maksimal 1.5 core CPU
+            memory: "2Gi"
+            cpu: "1500m"
         volumeMounts:
         - name: jenkins-home
           mountPath: /var/jenkins_home
@@ -39,3 +47,4 @@ spec:
       - name: jenkins-home
         persistentVolumeClaim:
           claimName: jenkins-pvc
+
