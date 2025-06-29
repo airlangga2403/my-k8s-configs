@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kai-test-kafka
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/airlangga2403/my-k8s-configs.git'
+    path: kai-test-kafka # Path ke direktori aplikasi
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kai-test-kafka # Deploy ke namespace yang sesuai
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
