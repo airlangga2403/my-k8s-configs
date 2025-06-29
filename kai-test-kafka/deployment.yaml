@@ -26,7 +26,7 @@ spec:
         # --- PERBAIKAN DI SINI ---
         # Username diubah menjadi username Docker Hub Anda yang benar (airlangga22).
         # Jenkins akan mengganti tag ':initial' secara otomatis.
-        image: airlangga22/kai-test-kafka:initial
+        image: airlangga22/kai-test-kafka:571e1c2
         imagePullPolicy: Always # Disarankan untuk selalu pull image terbaru dari registry
         ports:
         - containerPort: 8080
