@@ -3,6 +3,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kai-test-kafka-deployment
+  # Selalu tentukan namespace agar konsisten
+  namespace: kai-test-kafka
 spec:
   replicas: 1
   selector:
@@ -13,12 +15,19 @@ spec:
       labels:
         app: kai-test-kafka
     spec:
-      containers:
-      - name: app
+      # --- LOKASI YANG BENAR UNTUK imagePullSecrets ---
+      # 'imagePullSecrets' berada di sini, sejajar dengan 'containers'.
       imagePullSecrets:
       - name: dockerhub-creds
+      # -----------------------------------------------
+      
+      containers:
+      - name: app
+        # --- LOKASI YANG BENAR UNTUK image ---
+        # 'image' adalah properti dari container, bukan dari imagePullSecrets.
         # PENTING: Jenkins akan mengganti baris ini secara otomatis
         image: airlangga2403/kai-test-kafka:initial
+        imagePullPolicy: Always # Disarankan untuk selalu pull image terbaru dari registry
         ports:
         - containerPort: 8080
         volumeMounts:
