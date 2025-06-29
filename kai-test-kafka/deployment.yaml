@@ -3,7 +3,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kai-test-kafka-deployment
-  # Selalu tentukan namespace agar konsisten
   namespace: kai-test-kafka
 spec:
   replicas: 1
@@ -15,21 +14,35 @@ spec:
       labels:
         app: kai-test-kafka
     spec:
-      # --- LOKASI YANG BENAR UNTUK imagePullSecrets ---
-      # 'imagePullSecrets' berada di sini, sejajar dengan 'containers'.
       imagePullSecrets:
       - name: dockerhub-creds
-      # -----------------------------------------------
-      
       containers:
       - name: app
-        # --- PERBAIKAN DI SINI ---
-        # Username diubah menjadi username Docker Hub Anda yang benar (airlangga22).
-        # Jenkins akan mengganti tag ':initial' secara otomatis.
-        image: airlangga22/kai-test-kafka:571e1c2
-        imagePullPolicy: Always # Disarankan untuk selalu pull image terbaru dari registry
+        image: airlangga22/kai-test-kafka:initial # Ini akan diganti oleh Jenkins
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
+        
+        # ==================== PENAMBAHAN DI SINI ====================
+        # Menentukan permintaan dan batas sumber daya untuk container.
+        # Ini akan membantu Kubernetes menjadwalkan Pod secara efisien dan mencegahnya
+        # menggunakan terlalu banyak sumber daya dari Node.
+        resources:
+          requests:
+            # Jumlah memori minimum yang dijamin oleh K8s untuk container ini.
+            memory: "256Mi"
+            # Jumlah CPU minimum yang dijamin oleh K8s untuk container ini.
+            # "250m" berarti 0.25 core CPU.
+            cpu: "250m"
+          limits:
+            # Jumlah memori maksimum yang boleh digunakan oleh container ini.
+            # Jika melebihi, Pod akan dimatikan (OOMKilled).
+            memory: "512Mi"
+            # Jumlah CPU maksimum yang boleh digunakan oleh container ini.
+            # "500m" berarti 0.5 core CPU.
+            cpu: "500m"
+        # ==========================================================
+
         volumeMounts:
         - name: config-volume
           mountPath: /app/config
