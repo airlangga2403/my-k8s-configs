@@ -1,0 +1,19 @@
+# my-k8s-configs/kai-test-kafka/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kai-test-kafka-config
+data:
+  # Nama kunci harus 'application.yml'
+  application.yml: |
+    server:
+      port: 8080
+    spring:
+      application:
+        name: kai-test-kafka
+      # Contoh koneksi database atau Kafka
+      # datasource:
+      #   url: jdbc:postgresql://postgres-service.postgres-ha:5432/mydb
+      #   username: pguser
+      # kafka:
+      #   bootstrap-servers: kafka-service.kafka:9092

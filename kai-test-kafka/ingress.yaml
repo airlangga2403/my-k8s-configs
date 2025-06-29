@@ -1,0 +1,19 @@
+# my-k8s-configs/kai-test-kafka/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kai-test-kafka-ingress
+  annotations:
+    # Anotasi ini penting untuk NGINX Ingress
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /kai-test-kafka # URL yang bisa diakses: http://<IP-NODE>/kai-test-kafka
+        pathType: Prefix
+        backend:
+          service:
+            name: kai-test-kafka-service
+            port:
+              number: 80

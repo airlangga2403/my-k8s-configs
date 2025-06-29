@@ -1,0 +1,12 @@
+# my-k8s-configs/kai-test-kafka/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: kai-test-kafka-service
+spec:
+  type: ClusterIP
+  selector:
+    app: kai-test-kafka
+  ports:
+  - port: 80
+    targetPort: 8080
