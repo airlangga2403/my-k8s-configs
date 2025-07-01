@@ -5,13 +5,32 @@ metadata:
   name: kai-test-kafka-config
   namespace: kai-test-kafka
 data:
-  application.yml: |
+  application.yml:
     # ==================== PERBAIKAN DI SINI ====================
     # Menambahkan context-path agar aplikasi berjalan di /kai-test-kafka
     server:
       servlet:
         context-path: /kai-test-kafka
       port: 8080
+
+    springdoc:
+      # Path untuk mengakses spesifikasi OpenAPI JSON
+      api-docs:
+        path: /api-docs
+      # Path untuk mengakses Swagger UI
+      swagger-ui:
+        path: /swagger-ui.html
+      # Best practice: Mengurutkan endpoint berdasarkan metode (GET, POST, etc.)
+      operations-sorter: method
+      # Best practice: Mengurutkan tag (controller) berdasarkan abjad
+      tags-sorter: alpha
+
+      # --- Konfigurasi Server (SANGAT PENTING) ---
+      # Memberitahu Swagger UI bahwa base URL untuk semua request API
+      # harus diawali dengan context-path. Tanpa ini, fitur "Try it out" akan gagal.
+      servers:
+        - url: /kai-test-kafka
+          description: Server URL untuk lingkungan lokal
     # =========================================================
 
     kafka:
@@ -37,7 +56,7 @@ data:
         listener:
           type: batch
           ack-mode: MANUAL_IMMEDIATE
-      
+
       datasource:
         rolink-master:
           url: jdbc:postgresql://43.157.209.107:31001/mydb?currentSchema=starlink
