@@ -37,7 +37,7 @@ spec:
           limits:
             # Jumlah memori maksimum yang boleh digunakan oleh container ini.
             # Jika melebihi, Pod akan dimatikan (OOMKilled).
-            memory: "1Gi"
+            memory: "512mi"
             # Jumlah CPU maksimum yang boleh digunakan oleh container ini.
             # "500m" berarti 0.5 core CPU.
             cpu: "1000m"
