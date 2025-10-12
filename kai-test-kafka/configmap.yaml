@@ -13,24 +13,11 @@ data:
         context-path: /kai-test-kafka
       port: 8080
 
-    springdoc:
-      # Path untuk mengakses spesifikasi OpenAPI JSON
-      api-docs:
-        path: /api-docs
-      # Path untuk mengakses Swagger UI
-      swagger-ui:
-        path: /swagger-ui.html
-      # Best practice: Mengurutkan endpoint berdasarkan metode (GET, POST, etc.)
-      operations-sorter: method
-      # Best practice: Mengurutkan tag (controller) berdasarkan abjad
-      tags-sorter: alpha
+    jwt:
+      secret: a3c4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4
 
-      # --- Konfigurasi Server (SANGAT PENTING) ---
-      # Memberitahu Swagger UI bahwa base URL untuk semua request API
-      # harus diawali dengan context-path. Tanpa ini, fitur "Try it out" akan gagal.
-      servers:
-        - url: /kai-test-kafka
-          description: Server URL untuk lingkungan lokal
+    expiration:
+      ms: 86400000
     # =========================================================
 
     kafka:
