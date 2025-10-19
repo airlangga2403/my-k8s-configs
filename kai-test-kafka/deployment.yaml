@@ -18,7 +18,7 @@ spec:
       - name: dockerhub-creds
       containers:
       - name: app
-        image: airlangga22/kai-test-kafka:09a7034
+        image: airlangga22/kai-test-kafka:a6b403d
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
