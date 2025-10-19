@@ -7,82 +7,72 @@ metadata:
 data:
   application.yml: |
     # ==================== PERBAIKAN DI SINI ====================
-    # Menambahkan context-path agar aplikasi berjalan di /kai-test-kafka
-    server:
-      servlet:
-        context-path: /kai-test-kafka
-      port: 8080
-
-    jwt:
-      secret: a3c4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4
-
-    expiration:
-      ms: 86400000
-    # =========================================================
-
-    kafka:
-      topic:
-        presensi-log: presensi-log
-
+    # Menambahkan context-path agar aplikasi berjalan di /glowapp-be
     spring:
       application:
-        name: kai-test-kafka
-      profiles:
-        active: development
-      kafka:
-        bootstrap-servers: 43.157.209.107:30992
-        consumer:
-          group-id: presensi-log-batch-consumer-group-v3
-          auto-offset-reset: earliest
-          enable-auto-commit: false
-          key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-          value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-          fetch-max-wait-ms: 5000
-          fetch-min-bytes: 1
-          max-poll-records: 500
-        listener:
-          type: batch
-          ack-mode: MANUAL_IMMEDIATE
+        name: skincare-ecommerce-api
 
       datasource:
-        rolink-master:
-          url: jdbc:postgresql://43.157.209.107:31001/mydb?currentSchema=starlink
-          username: pguser
-          password: pgpass
-          driver-class-name: org.postgresql.Driver
-          test-while-idle: true
-          test-on-borrow: true
-          validation-query: SELECT 1
-          hikari:
-            minimum-idle: 5
-            maximum-pool-size: 20
-            idle-timeout: 30000
-            max-lifetime: 1800000
-            connection-timeout: 30000
-        rolink-slave:
-          url: jdbc:postgresql://43.157.209.107:31001/mydb?currentSchema=starlink
-          username: pguser
-          password: pgpass
-          driver-class-name: org.postgresql.Driver
-          test-while-idle: true
-          test-on-borrow: true
-          validation-query: SELECT 1
-          hikari:
-            minimum-idle: 5
-            maximum-pool-size: 20
-            idle-timeout: 30000
-            max-lifetime: 1800000
-            connection-timeout: 30000
+        url: jdbc:postgresql://43.157.209.107:31001/mydb?currentSchema=gloowapp
+        username: pguser # Ganti dengan username DB Anda
+        password: pgpass # Ganti dengan password DB Anda
+        driver-class-name: org.postgresql.Driver
+        test-while-idle: true
+        test-on-borrow: true
+        validation-query: SELECT 1
+        hikari:
+          minimum-idle: 5
+          maximum-pool-size: 20
+          idle-timeout: 30000
+          max-lifetime: 1800000
+          connection-timeout: 30000
 
       jpa:
         database-platform: org.hibernate.dialect.PostgreSQLDialect
         hibernate:
+          ddl-auto: update # <-- Ini akan membuat ulang tabel saat startup
           naming:
             physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
         properties:
           hibernate:
             jdbc:
-              batch_size: 50
-            order_inserts: true
-            order_updates: true
-            batch_versioned_data: true
+              batch_size: 200
+              order_inserts: true
+              order_updates: true
+              batch_versioned_data: true
+
+      jackson:
+        serialization:
+          write-dates-as-timestamps: false
+        time-zone: Asia/Jakarta
+        default-property-inclusion: non_null
+
+      servlet:
+        multipart:
+          max-file-size: 10MB
+          max-request-size: 10MB
+
+    server:
+      port: 8080
+      servlet:
+        context-path: /kai-test-kafka/
+      error:
+        include-message: always
+
+    logging:
+      level:
+        root: INFO
+        com.skincare: DEBUG
+        org.hibernate.SQL: DEBUG
+        org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+      pattern:
+        console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+        file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+      file:
+        name: logs/skincare-api.log
+
+    jwt:
+      secret: a3c4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4
+
+      expiration:
+        ms: 86400000
