@@ -2,17 +2,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kai-test-kafka-deployment
-  namespace: kai-test-kafka
+  name: glowapp-be-deployment
+  namespace: glowapp-be
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: kai-test-kafka
+      app: glowapp-be
   template:
     metadata:
       labels:
-        app: kai-test-kafka
+        app: glowapp-be
     spec:
       imagePullSecrets:
       - name: dockerhub-creds

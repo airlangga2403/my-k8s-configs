@@ -2,12 +2,12 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: kai-test-kafka-config
-  namespace: kai-test-kafka
+  name: glowapp-be-config
+  namespace: glowapp-be
 data:
   application.yml: |
     # ==================== PERBAIKAN DI SINI ====================
-    # Menambahkan context-path agar aplikasi berjalan di /kai-test-kafka
+    # Menambahkan context-path agar aplikasi berjalan di /glowapp-be
     spring:
       application:
         name: skincare-ecommerce-api
