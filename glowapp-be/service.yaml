@@ -1,0 +1,20 @@
+# my-k8s-configs/gloowapp/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: gloowapp-service
+  namespace: gloowapp
+spec:
+  # Tipe NodePort akan mengekspos service di port statis pada setiap IP Node.
+  type: NodePort
+  selector:
+    # Selector ini harus cocok dengan label di Deployment Anda.
+    app: gloowapp
+  ports:
+    # Port ini adalah port internal Service di dalam cluster.
+  - port: 8080
+    # Port ini adalah port di dalam container/pod aplikasi Anda.
+    targetPort: 8080
+    # Ini adalah port yang akan Anda akses dari luar (IP_NODE:PORT).
+    nodePort: 30825
+    name: http

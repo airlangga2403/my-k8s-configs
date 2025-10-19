@@ -1,0 +1,52 @@
+# my-k8s-configs/gloowapp/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gloowapp-deployment
+  namespace: gloowapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gloowapp
+  template:
+    metadata:
+      labels:
+        app: gloowapp
+    spec:
+      imagePullSecrets:
+      - name: dockerhub-creds
+      containers:
+      - name: app
+        image: airlangga22/gloowapp:981e7e5
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        
+        # ==================== PENAMBAHAN DI SINI ====================
+        # Menentukan permintaan dan batas sumber daya untuk container.
+        # Ini akan membantu Kubernetes menjadwalkan Pod secara efisien dan mencegahnya
+        # menggunakan terlalu banyak sumber daya dari Node.
+        resources:
+          requests:
+            # Jumlah memori minimum yang dijamin oleh K8s untuk container ini.
+            memory: "512Mi"
+            # Jumlah CPU minimum yang dijamin oleh K8s untuk container ini.
+            # "250m" berarti 0.25 core CPU.
+            cpu: "500m"
+          limits:
+            # Jumlah memori maksimum yang boleh digunakan oleh container ini.
+            # Jika melebihi, Pod akan dimatikan (OOMKilled).
+            memory: "750Mi"
+            # Jumlah CPU maksimum yang boleh digunakan oleh container ini.
+            # "500m" berarti 0.5 core CPU.
+            cpu: "1000m"
+        # ==========================================================
+
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+      volumes:
+      - name: config-volume
+        configMap:
+          name: gloowapp-config
