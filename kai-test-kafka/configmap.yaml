@@ -30,7 +30,7 @@ data:
       jpa:
         database-platform: org.hibernate.dialect.PostgreSQLDialect
         hibernate:
-          ddl-auto: update # <-- Ini akan membuat ulang tabel saat startup
+          ddl-auto: validate # <-- Ini akan membuat ulang tabel saat startup
           naming:
             physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
         properties:
