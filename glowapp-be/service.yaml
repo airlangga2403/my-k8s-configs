@@ -1,15 +1,15 @@
-# my-k8s-configs/gloowapp/service.yaml
+# my-k8s-configs/kai-test-kafka/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: gloowapp-service
-  namespace: gloowapp
+  name: kai-test-kafka-service
+  namespace: kai-test-kafka
 spec:
   # Tipe NodePort akan mengekspos service di port statis pada setiap IP Node.
   type: NodePort
   selector:
     # Selector ini harus cocok dengan label di Deployment Anda.
-    app: gloowapp
+    app: kai-test-kafka
   ports:
     # Port ini adalah port internal Service di dalam cluster.
   - port: 8080

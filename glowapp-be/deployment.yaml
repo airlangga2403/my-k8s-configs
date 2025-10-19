@@ -1,18 +1,18 @@
-# my-k8s-configs/gloowapp/deployment.yaml
+# my-k8s-configs/kai-test-kafka/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: gloowapp-deployment
-  namespace: gloowapp
+  name: kai-test-kafka-deployment
+  namespace: kai-test-kafka
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: gloowapp
+      app: kai-test-kafka
   template:
     metadata:
       labels:
-        app: gloowapp
+        app: kai-test-kafka
     spec:
       imagePullSecrets:
       - name: dockerhub-creds
@@ -49,4 +49,4 @@ spec:
       volumes:
       - name: config-volume
         configMap:
-          name: gloowapp-config
+          name: kai-test-kafka-config

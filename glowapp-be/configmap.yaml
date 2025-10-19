@@ -1,13 +1,13 @@
-# my-k8s-configs/gloowapp/configmap.yaml
+# my-k8s-configs/kai-test-kafka/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: gloowapp-config
-  namespace: gloowapp
+  name: kai-test-kafka-config
+  namespace: kai-test-kafka
 data:
   application.yml: |
     # ==================== PERBAIKAN DI SINI ====================
-    # Menambahkan context-path agar aplikasi berjalan di /gloowapp
+    # Menambahkan context-path agar aplikasi berjalan di /kai-test-kafka
     spring:
       application:
         name: skincare-ecommerce-api
@@ -55,7 +55,7 @@ data:
     server:
       port: 8080
       servlet:
-        context-path: /gloowapp/
+        context-path: /kai-test-kafka/
       error:
         include-message: always
 
