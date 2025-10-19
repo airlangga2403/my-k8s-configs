@@ -49,4 +49,4 @@ spec:
       volumes:
       - name: config-volume
         configMap:
-          name: kai-test-kafka-config
+          name: glowapp-be-config
