@@ -1,0 +1,28 @@
+# jaeger-argo-app.yaml
+# Manifes Aplikasi Argo CD untuk Jaeger
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  # Nama aplikasi di Argo CD
+  name: jaeger
+  namespace: argocd
+spec:
+  project: default
+  source:
+    # URL repo Git Anda (Sesuai contoh Kafdrop Anda)
+    repoURL: 'https://github.com/airlangga2403/my-k8s-configs.git'
+    # Path ke folder tempat Anda menyimpan manifes Jaeger
+    # Pastikan Anda membuat folder bernama 'jaeger' di repo dan taruh file manifest di sana
+    path: jaeger
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    # Namespace tujuan deployment (sesuai manifest di atas)
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # Membuat namespace 'observability' otomatis jika belum ada
+      - CreateNamespace=true
