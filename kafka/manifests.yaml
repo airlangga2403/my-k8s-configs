@@ -5,6 +5,7 @@ metadata:
   name: test
 
 ---
+# SERVICE INTERNAL (Harus Headless untuk StatefulSet)
 apiVersion: v1
 kind: Service
 metadata:
@@ -14,7 +15,7 @@ metadata:
     app: kafka-test
     unit: kafka
 spec:
-  type: ClusterIP
+  clusterIP: None  # PENTING: Headless service untuk resolusi DNS pod stabil
   selector:
     app: kafka-test
     unit: kafka
@@ -27,6 +28,7 @@ spec:
       targetPort: 9093
 
 ---
+# SERVICE EXTERNAL (Akses dari luar cluster)
 apiVersion: v1
 kind: Service
 metadata:
@@ -67,7 +69,8 @@ spec:
     spec:
       containers:
         - name: kafka
-          image: bitnami/kafka:3.7
+          # Menggunakan Image Apache Official sesuai request
+          image: apache/kafka:3.7.0 
           ports:
             - containerPort: 9092
               name: internal
@@ -76,40 +79,45 @@ spec:
             - containerPort: 9094
               name: external
           env:
-            # KRaft mode configuration
-            - name: KAFKA_ENABLE_KRAFT
-              value: "yes"
-            - name: KAFKA_CFG_PROCESS_ROLES
-              value: "controller,broker"
-            - name: KAFKA_CFG_NODE_ID
-              value: "1"
-            - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
-              value: "1@kafka-0.kafka-internal.test:9093"
+            # --- KONFIGURASI APACHE KAFKA (Beda dengan Bitnami) ---
             
-            # Fixed: Added controller listener names
-            - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
+            # ID Node (Harus 0 karena nama podnya kafka-0)
+            - name: KAFKA_NODE_ID
+              value: "0"
+            
+            # Roles (KRaft Mode)
+            - name: KAFKA_PROCESS_ROLES
+              value: "broker,controller"
+            
+            # Listeners Configuration
+            # Kita ganti nama 'INTERNAL' jadi 'PLAINTEXT' karena itu standar Apache
+            - name: KAFKA_LISTENERS
+              value: "PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094"
+            
+            # Advertised Listeners (Alamat yang dikasih ke client)
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://kafka-0.kafka-internal.test:9092,EXTERNAL://43.157.209.107:30992"
+            
+            # Security Map
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
+            
+            # Controller Quorum (Penting untuk KRaft)
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: "0@kafka-0.kafka-internal.test:9093"
+            
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
               value: "CONTROLLER"
             
-            # Listener configuration
-            - name: KAFKA_CFG_LISTENERS
-              value: "INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:9094"
-            - name: KAFKA_CFG_ADVERTISED_LISTENERS
-              value: "INTERNAL://kafka-0.kafka-internal.test:9092,EXTERNAL://43.157.209.107:30992"
-            - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
-              value: "CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
-            - name: KAFKA_CFG_INTER_BROKER_LISTENER_NAME
-              value: "INTERNAL"
-            
-            # Other Kafka settings
-            - name: KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE
-              value: "true"
-            - name: KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: "PLAINTEXT"
+
+            # --- Konfigurasi Lainnya ---
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
               value: "1"
-            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+            - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
               value: "1"
-            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR
+            - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
               value: "1"
-            
-            # Resource settings
-            - name: KAFKA_HEAP_OPTS
-              value: "-Xmx1G -Xms1G"
+            - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+              value: "0"
